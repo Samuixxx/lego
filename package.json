@@ -1,0 +1,27 @@
+{
+  "name": "legoproject",
+  "version": "1.0.0",
+  "description": "Software to move a lego machine built by our school's group",
+  "main": "index.js",
+  "scripts": {
+    "test": "electron .",
+    "start": "electron .",
+    "build": "electron-builder",
+    "pack": "electron-builder --mac",
+    "dist": "electron-builder --win32"
+  },
+  "keywords": [
+    "lego",
+    "motor",
+    "cameras"
+  ],
+  "type": "commonjs",
+  "author": "4 criminali",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "app-root-path": "^3.1.0",
+    "electron": "^35.0.1",
+    "path": "^0.12.7",
+    "socketio": "^1.0.0"
+  }
+}

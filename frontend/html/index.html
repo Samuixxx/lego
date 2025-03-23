@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lego dashboard</title>
+    <link rel="stylesheet" href="../css/index.style.css" type="text/css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
+        integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.5.1/nouislider.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/themes/nano.min.css" />
+</head>
+
+<body>
+    <header id="page-controls">
+        <div id="window-controls-container">
+            <button type="button" class="window-controls-button close-button">
+                &#x2715; </button>
+            <button type="button" class="window-controls-button maximize-button">
+                &#x25A1; </button>
+            <button type="button" class="window-controls-button minimize-button">
+                &#x2212; </button>
+        </div>
+        <div id="greetings-container">
+            <span id="greetings-intro">
+                Made By:
+            </span>
+            <div id="greetings">
+                <span class="greetings-span">
+                    Brusco
+                </span>
+                <span class="greetings-span">
+                    Rama
+                </span>
+                <span class="greetings-span">
+                    Fioraso
+                </span>
+                <span class="greetings-span">
+                    Casalin
+                </span>
+            </div>
+        </div>
+    </header>
+    <main id="mainpage">
+        <section id="mainpage-top" class="mainpage-section">
+            <div id="data-dashboard">
+                <div id="info-panel">
+                    <div id="data-container">
+                        <div id="data-specific">
+                            <div id="temperature-display">
+
+                            </div>
+                            <div id="data-values">
+                                <span class="data-value-span">
+                                    28 Miles this road
+                                </span>
+                                <div id="data-control-container">
+                                    <button type="button" class="data-control">
+                                        <i class="fa-solid fa-backward fa-xl"></i>
+                                    </button>
+                                    <button type="button" class="data-control">
+                                        <i class="fa-solid fa-forward fa-xl"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="data-general">
+                            <h3 id="general-control-title">
+                                Controllo
+                            </h3>
+                            <span id="general-control-info">
+                                Benvenuto nel pannello di controllo della gru mobile! Qui puoi gestire facilmente tutte
+                                le sue funzioni principali.
+                            </span>
+                        </div>
+                    </div>
+                    <div id="camera-container">
+                        <img src="../../public/assets/legopreview.png" alt="Lego" id="lego-model-shower" draggable="false" />
+                        <h2 id="speed-indicator">
+                            88 km/h
+                        </h2>
+                    </div>
+                </div>
+                <div id="audio-panel">
+                    <div id="volume-controls">
+                        <div class="volume-knob">
+                            <div class="volume-handle"></div>
+                        </div>
+                        <div class="volume-knob">
+                            <div class="volume-handle"></div>
+                        </div>
+                    </div>
+                    <div id="song-input-container">
+                        <div id="song-input-display">Seleziona un file audio</div>
+                    </div>
+                    <div id="track-controls">
+                        <button type="button" class="track-control">
+                            <i class="fa-solid fa-repeat fa-xl"></i>
+                        </button>
+                        <button type="button" class="track-control">
+                            <i class="fa-solid fa-arrows-rotate fa-xl"></i>
+                        </button>
+                        <button type="button" class="track-control">
+                            <i class="fa-solid fa-stop fa-xl"></i>
+                        </button>
+                        <button type="button" class="track-control">
+                            <i class="fa-solid fa-volume-xmark fa-xl"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <aside id="mainpage-top-utils">
+                <div id="clock-container">
+                    <div id="analog-clock">
+                        <div class="clock-face">
+                            <div class="hand hour-hand" id="hour-hand"></div>
+                            <div class="hand minute-hand" id="minute-hand"></div>
+                            <div class="hand second-hand" id="second-hand"></div>
+                            <div class="center-point"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="led-switch-container">
+                    <div class="led-switches">
+                        <label class="led-info-label">
+                            Front LED:
+                        </label>
+                        <label class="switch" id="led-switch-front">
+                            <input type="checkbox" />
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="led-switches">
+                        <label class="led-info-label">
+                            Rear LED:
+                        </label>
+                        <label class="switch" id="led-switch-retro">
+                            <input type="checkbox" />
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                <div id="lego-options-container">
+                    <!-- Turbo Slider -->
+                    <div class="slider-container">
+                        <label for="turbo-slider" class="option-label">Turbo Power</label>
+                        <div id="turbo-value-container" class="vertical-slider"></div>
+                    </div>
+
+                    <!-- Color Picker -->
+                    <div class="slider-container">
+                        <label for="color-slider" class="option-label">Led Color</label>
+                        <div id="color-wheel"></div>
+                    </div>
+
+                    <!-- Brake Slider -->
+                    <div class="slider-container">
+                        <label for="brake-slider" class="option-label">Brake Intensity</label>
+                        <div id="brake-intensity-container" class="vertical-slider"></div>
+                    </div>
+                </div>
+                <div id="lego-power-container">
+                    <button id="lego-power-button" class="off">
+                        <i class="fa-solid fa-power-off fa-2xl"></i>
+                        <div class="glowing-lines"></div>
+                    </button>
+                </div>
+            </aside>
+        </section>
+        <section id="mainpage-bottom" class="mainpage-section">
+            <div id="camera-dashboard-container">
+                <video src="" id="camera-viewer" autoplay></video>
+                <div id="camera-zoom-value-container">
+                    <div id="camera-zoom-value"></div>
+                    <label class="camera-utils-label">
+                        Zoom
+                    </label>
+                </div>
+                <div id="camera-main-utils">
+                    <div class="camera-utils-container">
+                        <button type="button" class="camera-utils">
+                            <div class="photo-icon"></div>
+                        </button>
+                        <label class="camera-utils-label">
+                            Photo
+                        </label>
+                    </div>
+                    <div class="camera-utils-container">
+                        <button type="button" class="camera-utils" id="startRecording">
+                            <div class="record-icon"></div>
+                        </button>
+                        <button type="button" class="camera-utils" id="stopRecording" style="display: none;">
+                            <div class="stop-icon"></div>
+                        </button>
+                        <label class="camera-utils-label">
+                            Video
+                        </label>
+                    </div>
+                    <div class="camera-utils-container">
+                        <button type="button" class="camera-utils">
+                            <div class="toggle">
+                                <input class="toggle-input" type="checkbox" />
+                                <div class="toggle-bg"></div>
+                                <div class="toggle-switch">
+                                    <div class="toggle-switch-figure"></div>
+                                    <div class="toggle-switch-figureAlt"></div>
+                                </div>
+                            </div>
+                        </button>
+                        <label class="camera-utils-label">
+                            Night Mode
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div id="movement-dashboard-container">
+                <div id="movement-possibilities-container">
+                    <div class="movement-possibilities">
+                        <button type="button" class="movement-button">
+                            <i class="fa-solid fa-up-long fa-2xl"></i>
+                        </button>
+                        <label class="movement-label">
+                            Su
+                        </label>
+                    </div>
+                    <div class="movement-possibilities">
+                        <button type="button" class="movement-button">
+                            <i class="fa-solid fa-left-long fa-2xl"></i>
+                        </button>
+                        <label class="movement-label">
+                            Sinistra
+                        </label>
+                    </div>
+                    <div class="movement-possibilities">
+                        <button type="button" class="movement-button">
+                            <i class="fa-solid fa-right-long fa-2xl"></i>
+                        </button>
+                        <label class="movement-label">
+                            Destra
+                        </label>
+                    </div>
+                    <div class="movement-possibilities">
+                        <button type="button" class="movement-button">
+                            <i class="fa-solid fa-down-long fa-2xl"></i>
+                        </button>
+                        <label class="movement-label">
+                            Giù
+                        </label>
+                    </div>
+                </div>
+                <div id="movement-engine-container">
+                    <div id="engine-gear-container">
+                        <div id="engine-gear">
+                            <div class="gear-slot" data-gear="4"><span class="gear-text">4</span></div>
+                            <div class="gear-slot" data-gear="3"><span class="gear-text">3</span></div>
+                            <div class="gear-slot" data-gear="2"><span class="gear-text">2</span></div>
+                            <div class="gear-slot" data-gear="1"><span class="gear-text">1</span></div>
+                            <div class="gear-slot" data-gear="F"><span class="gear-text">F</span></div>
+                            <div class="gear-lever" id="gearLever"><span class="gear-text">N</span></div>
+                            <div class="gear-slot" data-gear="R"><span class="gear-text">R</span></div>
+                        </div>
+                    </div>
+                    <div id="hand-brake-container">
+                        <div class="brake">
+                            <div class="lever"></div>
+                            <div class="status">
+                                <span class="inactive">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.5.1/nouislider.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr"></script>
+    <script src="../js/index.js"></script>
+</body>
+
+</html>
