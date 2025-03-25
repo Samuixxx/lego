@@ -3,7 +3,7 @@ const RootPath = require('app-root-path');
 const path = require('path');
 
 // utils imports
-const { maximizeWindow, minimizeWindow, closeWindow } = require('./utils/utils.js');
+const { maximizeWindow, minimizeWindow, closeWindow, updateSslCert } = require('./utils/utils.js');
 
 // getting root path
 __dirname = RootPath.path;
@@ -28,6 +28,8 @@ function createWindow() {
             contentSecurityPolicy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';"
         }
     });
+
+    updateSslCert(__dirname);
 
     win.maximize();
     win.show();

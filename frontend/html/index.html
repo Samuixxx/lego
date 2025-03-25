@@ -80,7 +80,7 @@
                     <div id="camera-container">
                         <img src="../../public/assets/legopreview.png" alt="Lego" id="lego-model-shower" draggable="false" />
                         <h2 id="speed-indicator">
-                            88 km/h
+                            0 km/h
                         </h2>
                     </div>
                 </div>
@@ -172,7 +172,7 @@
         </section>
         <section id="mainpage-bottom" class="mainpage-section">
             <div id="camera-dashboard-container">
-                <video src="" id="camera-viewer" autoplay></video>
+                <canvas id="camera-canvas"></canvas>
                 <div id="camera-zoom-value-container">
                     <div id="camera-zoom-value"></div>
                     <label class="camera-utils-label">
@@ -202,8 +202,8 @@
                     <div class="camera-utils-container">
                         <button type="button" class="camera-utils">
                             <div class="toggle">
-                                <input class="toggle-input" type="checkbox" />
-                                <div class="toggle-bg"></div>
+                                <input class="toggle-input" type="checkbox" id="night-mode-value"/>
+                                <div class="toggle-night-mode"></div>
                                 <div class="toggle-switch">
                                     <div class="toggle-switch-figure"></div>
                                     <div class="toggle-switch-figureAlt"></div>

@@ -777,14 +777,36 @@ input:focus+.slider {
     gap: var(--small-gap);
 }
 
-#camera-viewer {
+#camera-canvas {
     width: 100%;
     height: 100%;
     max-height: 17rem;
+    min-height: 17rem;  
     grid-area: camera;
     background-color: var(--element-background-color);
     border-radius: var(--default-border-radius);
-    object-fit: contain;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#camera-viewer::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5));
+    z-index: 1;
+}
+
+#camera-viewer video, #camera-viewer img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
 }
 
 #camera-zoom-value-container {
@@ -837,7 +859,7 @@ input:focus+.slider {
     cursor: pointer;
 }
 
-.toggle-bg {
+.toggle-night-mode {
     position: absolute;
     top: 0;
     left: 0;
@@ -857,6 +879,7 @@ input:focus+.slider {
     height: 100%;
     opacity: 0;
     z-index: 2;
+    cursor: pointer;
 }
 
 .toggle-switch {

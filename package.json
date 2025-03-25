@@ -21,6 +21,7 @@
   "dependencies": {
     "app-root-path": "^3.1.0",
     "electron": "^35.0.1",
+    "fs": "^0.0.1-security",
     "path": "^0.12.7",
     "socketio": "^1.0.0"
   }

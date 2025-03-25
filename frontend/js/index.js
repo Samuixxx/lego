@@ -1,15 +1,91 @@
 document.addEventListener("DOMContentLoaded", () => {
 
     // creating new websocket instance
-    const socket = new WebSocket("ws://localhost:8765");
+    const socket = new WebSocket("wss://localhost:8765");
 
     socket.onopen = () => {
         console.log("Connected to the server");
+        socket.send(JSON.stringify({ type: "start-video-streaming", content: "" }));
     };
 
     socket.onclose = () => {
         console.log("Disconnected from the server");
     };
+
+    socket.onerror = (error) => {
+        console.log("Error occurred");
+    }
+
+    let videoChunks = []; // variabile per salvare i chunk di video inviati al client dal server websocket
+
+    socket.onmessage = function (event) {
+        try {
+            const response = JSON.parse(event.data);
+
+            if (response.ok && response.motorStarted) {
+                console.log("Motore avviato:", response);
+                legoStatusButton.classList.remove("off");
+                legoStatusButton.classList.add("on");
+            } else if (response.ok && response.motorTurnedoff) {
+                console.log("Motore spento:", response);
+                legoStatusButton.classList.remove("on");
+                legoStatusButton.classList.add("off");
+            } else if (response.ok && response.videoStarted && response.frame && response.zoomFactor) {
+                updateCamera(response.frame); // aggiorno l'immagine della videocamera con le risposte inviate dal socket server
+            } else if (response.ok && response.nightModeStatus) {
+                console.log(" Visione notturna:", response);
+            } else if(response.sendingvideo && response.videoChunk){
+                let binaryData = Uint8Array.from(atob(data.videoChunk), c => c.charCodeAt(0));
+                videoChunks.push(binaryData);
+            } else if(response.ok && response.videoCompleted){
+                let videoBlob = new Blob(videoChunks, { type: 'video/x-msvideo' });
+                let videoUrl = URL.createObjectURL(videoBlob); // creo un url per il video mandato dal server socket
+                let a = document.createElement("a");
+                a.style.visibility = "hidden";
+                a.href = videoUrl;
+                a.download = "../../backend/recorded_video.avi";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                videoChunks = []; // pulisco la variabile per salvare i chunk dei futuri video
+            }
+        } catch (error) {
+            console.error("Errore nella risposta WebSocket:", error);
+        }
+    };
+
+
+    /**
+ * Updates the camera preview on a canvas element.  This function takes a base64 encoded JPEG image frame and renders it onto a canvas.  Handles resizing the canvas to match the image dimensions.
+
+ * @param {string} frame -immagine jpg codificata con base64 che rappresenta il frame della videocamera.
+ * @returns {void} 
+ */
+    const updateCamera = (frame) => {
+        const frame = response.frame;
+        const canvas = document.getElementById('camera-canvas');
+        const ctx = canvas.getContext('2d');
+        const image = new Image();
+
+        image.onload = function () {
+            canvas.width = image.width;
+            canvas.height = image.height;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.drawImage(
+                image,
+                0, 0,                   // coordinate sorgente (x,y)
+                image.width,             // larghezza sorgente
+                image.height,            // altezza sorgente
+                0, 0,                   // coordinate destinazione (x,y)
+                canvas.width,           // larghezza destinazione
+                canvas.height           // altezza destinazione
+            );
+        };
+
+        image.src = `data:image/jpeg;base64,${frame}`;
+    }
 
     // selecting window controls button
     const maximizeWindowButton = document.querySelector(".maximize-button");
@@ -64,12 +140,12 @@ document.addEventListener("DOMContentLoaded", () => {
         document.addEventListener('mouseup', handleMouseUp);
 
         /**
- * Calculates the angle of a mouse event relative to a given element's center.
- * 
- * @param {MouseEvent} e - The mouse event object.
- * @param {HTMLElement} knob - The HTML element to calculate the angle relative to.
- * @returns {number} The angle in degrees, ranging from -180 to 180.  Returns NaN if knob is not a valid HTMLElement.
- */
+    * Calculates the angle of a mouse event relative to a given element's center.
+    * 
+    * @param {MouseEvent} e - The mouse event object.
+    * @param {HTMLElement} knob - The HTML element to calculate the angle relative to.
+    * @returns {number} The angle in degrees, ranging from -180 to 180.  Returns NaN if knob is not a valid HTMLElement.
+    */
 
 
         function getAngle(e, knob) {
@@ -107,11 +183,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     /**
- * Updates the position of clock hands on an analog clock visual.  This function calculates the degree of rotation for each hand based on the current time and applies the rotation via CSS transforms.
- *
- * @function updateClock
- * @returns {void}  Does not return a value; updates the DOM directly.
- */
+    * Updates the position of clock hands on an analog clock visual.  This function calculates the degree of rotation for each hand based on the current time and applies the rotation via CSS transforms.
+    *
+    * @function updateClock
+    * @returns {void}  Does not return a value; updates the DOM directly.
+    */
     function updateClock() {
         const now = new Date();
         const hours = now.getHours();
@@ -178,15 +254,36 @@ document.addEventListener("DOMContentLoaded", () => {
     const stopButton = document.getElementById("stopRecording");
 
     startButton.addEventListener("click", () => {
-        startButton.style.display = "none";
-        stopButton.style.display = "block";
-        socket.send(JSON.stringify({ type: "start-video", content: "" }));
+        if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "start-recording", content: "" }));
+            startButton.style.display = "none";
+            stopButton.style.display = "block";
+        } else {
+            console.error("WebSocket connection is not open.");
+        }
     });
 
     stopButton.addEventListener("click", () => {
-        stopButton.style.display = "none";
-        startButton.style.display = "block";
-        socket.send(JSON.stringify({ type: "stop-video", content: "" }));
+        if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "stop-recording", content: "" }));
+            stopButton.style.display = "none";
+            startButton.style.display = "block";
+        } else {
+            console.error("WebSocket connection is not open.");
+        }
+    });
+
+
+    // night mode toggling
+    const nightModeInput = document.getElementById("night-mode-value");
+    nightModeInput.addEventListener("change", () => {
+        if (socket.readyState === WebSocket.OPEN) {
+            const nightMode = nightModeInput.checked ? 1 : 0;
+            console.log(nightMode);
+            socket.send(JSON.stringify({ type: "toggle-night-mode", content: nightMode }));
+        } else {
+            console.error("WebSocket non aperto. Impossibile inviare il messaggio.");
+        }
     });
 
     // Variables related to gear controller section
@@ -195,9 +292,9 @@ document.addEventListener("DOMContentLoaded", () => {
     let currentGear = "N";
 
     /**
- * Moves the gear lever to the specified gear position.
- * @param {string} gear - The gear to move the lever to.
- */
+    * Moves the gear lever to the specified gear position.
+    * @param {string} gear - The gear to move the lever to.
+    */
     function moveLever(gear) {
         const targetSlot = [...gearSlots].find(slot => slot.dataset.gear === gear);
         if (targetSlot) {
@@ -231,40 +328,39 @@ document.addEventListener("DOMContentLoaded", () => {
     // creating nouislider.js vertical bar to camera zoomer
     const zoomer = document.getElementById("camera-zoom-value");
     noUiSlider.create(zoomer, {
-        start: [50],
+        start: [1.5],
         orientation: 'vertical',
         direction: 'rtl',
         connect: [true, false],
         range: {
-            min: 0,
-            max: 100
+            min: 1,
+            max: 3.5
         },
+        step: 0.1,
         tooltips: true,
         format: {
-            to: value => `${Math.round(value)}%`,
-            from: value => Number(value.replace('%', ''))
+            to: function (value) {
+                return value.toFixed(1) + 'X';
+            },
+            from: function (value) {
+                return parseFloat(value);
+            }
         }
     });
 
+    // changing image zoom value when zoomer is updated
+    zoomer.noUiSlider.on('update', function (values, handle) {
+        const zoomFactor = parseFloat(values[0]);
+        // notifying socket with new zoom value
+        if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ "type": "set-zoom", "content": zoomFactor }));
+        } else {
+            return;
+        }
+    });
 
 
     updateClock();
     setInterval(updateClock, 1000);
 
-    socket.onmessage = function (event) {
-        try {
-            const response = JSON.parse(event.data);
-            
-            if (response.ok && response.motorStarted) {
-                legoStatusButton.classList.remove("off");
-                legoStatusButton.classList.add("on");
-            } else if (response.ok && response.motorTurnedoff) {
-                legoStatusButton.classList.remove("on");
-                legoStatusButton.classList.add("off");
-            }
-        } catch (error) {
-            console.error("Errore nella risposta WebSocket:", error);
-        }
-    };
-    
 });
