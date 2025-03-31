@@ -502,7 +502,7 @@ class CameraUtils:
         :param frame: Il frame catturato dalla videocamera (matrice numpy di OpenCV).
         """
         # Definisce la cartella di salvataggio delle immagini
-        base_dir = Path(__file__).parent.parent.parent
+        base_dir = Path(__file__).parent.parent.parent.parent
         save_dir = base_dir / "user/photos"
 
         # Crea la directory se non esiste (evita errori di scrittura)
