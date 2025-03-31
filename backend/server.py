@@ -8,9 +8,20 @@ import ssl
 from pathlib import Path
 import time
 # importing utils modules
-import utils.CameraUtils
+from utils.camera.CameraUtils import CameraUtils
+from utils.motor.MotorUtils import MotorUtils
+from utils.motor.motorenums.direction import Direction
+from utils.motor.motorenums.turn import Turn
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO, 
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.FileHandler(os.path.join(os.getcwd(), "log.txt")),
+        logging.StreamHandler()
+    ]
+)
 
 class Server:
     """
@@ -28,6 +39,7 @@ class Server:
         self.port = port # Websocket server listening port
         self.host = host # Server url
         self.ssl_context = ssl_context
+        self._temp_side = Direction.STOP
 
     async def handle_connection(self, websocket):
         """
@@ -41,17 +53,18 @@ class Server:
         self.clients.add(websocket)
 
         # Creating instance of CameraUtils 
-        camera_controller = utils.CameraUtils.CameraUtils(websocket=websocket, client_fps=240)
+        camera_controller = CameraUtils(websocket=websocket, client_fps=240)
+        motor_controller = MotorUtils(websocket=websocket)
 
         try:
             async for message in websocket:
-                await self.handle_message(message, camera_controller)
+                await self.handle_message(message, camera_controller, motor_controller)
         except websockets.exceptions.ConnectionClosed:
             logging.info("Client disconnesso")
         finally:
             self.clients.remove(websocket)
 
-    async def handle_message(self, message, camera_controller):
+    async def handle_message(self, message, camera_controller, motor_controller):
         """
         Gestisce un messaggio ricevuto da un client.
 
@@ -83,10 +96,10 @@ class Server:
                         slider_value = float(content)
                         
                         # Limita il valore tra 0 e 3
-                        if slider_value < 1.0:
-                            slider_value = 1.0
-                        elif slider_value > 3.5:
-                            slider_value = 3.5
+                        if slider_value < 0.5:
+                            slider_value = 0.5
+                        elif slider_value > 3:
+                            slider_value = 3
                         
                         # Imposta il valore di zoom
                         camera_controller.setZoomValue(slider_value)
@@ -96,11 +109,75 @@ class Server:
                     camera_controller.startRecording()
                     logging.info("Inizio registrazione")
                 case "stop-recording":
-                    camera_controller.stopRecording()
+                    asyncio.create_task(camera_controller.stopRecording())
                     logging.info("Fine registrazione")
+                case "take-picture":
+                    camera_controller.wantPhoto() # scatto una foto se il client lo richiede
+                    logging.info("Scatto foto")
+                # movements cases
+                case "toggle-motor-status":
+                    # Attivazione o disattivazione del motore
+                    motor_controller._toggle_motor_status()
+                case "move-forward":
+                    # Esegui il movimento in avanti senza sterzare
+                    self._temp_side = Direction.FORWARD
+                    asyncio.create_task(motor_controller._execute_move(self._temp_side))
 
+                case "move-backward":
+                    # Esegui il movimento indietro senza sterzare
+                    self._temp_side = Direction.BACKWARD
+                    asyncio.create_task(motor_controller._execute_move(self._temp_side))
+                
+                case "stop-moving":
+                    # Fermati
+                    self._temp_side = Direction.STOP
+                    asyncio.create_task(motor_controller._execute_move(Direction.STOP))
+
+                case "turn-left":
+                    if self._temp_side == Direction.STOP:
+                        asyncio.create_task(motor_controller._turn(Turn.LEFT))
+                    else:
+                        asyncio.create_task(motor_controller._execute_move(self._temp_side, Turn.LEFT))
+                
+                case "turn-right":
+                    if self._temp_side == Direction.STOP:
+                        asyncio.create_task(motor_controller._turn(Turn.RIGHT))
+                    else:
+                        asyncio.create_task(motor_controller._execute_move(self._temp_side, Turn.RIGHT))
+                
+                case "unturn-left":
+                    # Esegui l'annullamento della sterzata verso sinistra senza movimento
+                    asyncio.create_task(motor_controller._execute_move(self._temp_side, Turn.STRAIGHT))
+                
+                case "unturn-right":
+                    # Esegui l'annullamento della sterzata verso destra senza movimento
+                    asyncio.create_task(motor_controller._execute_move(self._temp_side, Turn.STRAIGHT))
+
+                    
         except json.JSONDecodeError:
             logging.error("Errore: Messaggio non è un JSON valido")
+
+
+    async def _continuous_movement(self, motor_controller):
+        """Loop asincrono per eseguire movimenti continui basati sul set."""
+        while self._forward or self._backward or self._left or self._right:
+            direction = Direction.STOP
+            turn = Turn.STRAIGHT
+
+            if self._forward:
+                direction = Direction.FORWARD
+            elif self._backward:
+                direction = Direction.BACKWARD
+
+            if self._left:
+                turn = Turn.LEFT
+            elif self._right:
+                turn = Turn.RIGHT
+
+            await motor_controller._execute_move(direction, turn)
+            await asyncio.sleep(0.05)  # Aggiorna ogni 50ms
+
+        await motor_controller._execute_move(Direction.STOP, Turn.STRAIGHT) #stop when no movement is setted
 
     async def start_server(self):
         """

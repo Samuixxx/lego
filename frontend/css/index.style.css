@@ -198,11 +198,55 @@ body {
     gap: var(--medium-gap);
 }
 
-#temperature-display {
+#direction-display {
     height: 80%;
     aspect-ratio: 1/1;
     border: 0.5rem solid green;
     border-radius: 50%;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    background-color: #2a2a2a; /* Fondo scuro per la bussola */
+}
+
+.compass {
+    width: 90%;
+    height: 90%;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.compass-background {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.5));
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+.compass-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.5);
+}
+
+.compass-needle {
+    position: absolute;
+    width: 2px;
+    height: 50%; /* La lunghezza dell'ago */
+    background-color: #f00;
+    top: 50%; /* Centrato orizzontalmente */
+    left: 50%; /* Centrato verticalmente */
+    transform-origin: center center; /* Imposta il centro come punto di rotazione */
+    transform: translate(-50%, -50%);
+    transition: transform 0.5s ease;
 }
 
 #data-values {
@@ -299,7 +343,7 @@ body {
     position: absolute;
     top: 5%;
     left: 5%;
-    font: 600 1.4rem "Roboto Condensed";
+    font: 600 2rem "Roboto Condensed";
     color: var(--text-color-secondary);
 }
 

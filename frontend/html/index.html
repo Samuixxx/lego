@@ -9,9 +9,19 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
         integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- cdn per dropzone.js (file input) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.css">
+    <!-- cdn per nouislider.js (valuebar) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.5.1/nouislider.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.5.1/nouislider.min.css">
+    <!-- cdn per pickr (Color slider) -->
+    <script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/themes/nano.min.css" />
+    <!-- cdn per noty.js (Notifiche push)-->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/noty/lib/noty.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/noty/lib/themes/mint.css">
+    <script src="https://cdn.jsdelivr.net/npm/noty/lib/noty.min.js"></script>
 </head>
 
 <body>
@@ -50,9 +60,15 @@
                 <div id="info-panel">
                     <div id="data-container">
                         <div id="data-specific">
-                            <div id="temperature-display">
-
+                            <div id="direction-display">
+                                <div class="compass">
+                                    <div class="compass-background">
+                                        <div class="compass-ring"></div>
+                                        <div class="compass-needle"></div>
+                                    </div>
+                                </div>
                             </div>
+                            
                             <div id="data-values">
                                 <span class="data-value-span">
                                     28 Miles this road
@@ -181,7 +197,7 @@
                 </div>
                 <div id="camera-main-utils">
                     <div class="camera-utils-container">
-                        <button type="button" class="camera-utils">
+                        <button type="button" class="camera-utils" id="take-picture">
                             <div class="photo-icon"></div>
                         </button>
                         <label class="camera-utils-label">
@@ -189,10 +205,10 @@
                         </label>
                     </div>
                     <div class="camera-utils-container">
-                        <button type="button" class="camera-utils" id="startRecording">
+                        <button type="button" class="camera-utils" id="start-recording">
                             <div class="record-icon"></div>
                         </button>
-                        <button type="button" class="camera-utils" id="stopRecording" style="display: none;">
+                        <button type="button" class="camera-utils" id="stop-recording" style="display: none;">
                             <div class="stop-icon"></div>
                         </button>
                         <label class="camera-utils-label">
@@ -276,9 +292,6 @@
         </section>
     </main>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.5.1/nouislider.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr"></script>
     <script src="../js/index.js"></script>
 </body>
 

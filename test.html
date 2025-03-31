@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bussola Futuristica</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #111;
+        }
+
+        .compass-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #333 30%, #222 70%, #111);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .needle {
+            position: absolute;
+            width: 6px;
+            height: 90px;
+            background: linear-gradient(to bottom, red, darkred);
+            transform-origin: center 90px;
+            top: 10px;
+            border-radius: 3px;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.8);
+        }
+
+        .center-dot {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background-color: gold;
+            border-radius: 50%;
+            z-index: 2;
+            box-shadow: 0 0 8px rgba(255, 215, 0, 0.8);
+        }
+    </style>
+</head>
+<body>
+    <div class="compass-container">
+        <div class="needle" id="needle"></div>
+        <div class="center-dot"></div>
+    </div>
+
+    <script>
+        function rotateNeedle() {
+            const needle = document.getElementById("needle");
+            let angle = 0;
+            setInterval(() => {
+                angle = (angle + Math.random() * 60 - 30) % 360; // Movimento casuale
+                needle.style.transform = `rotate(${angle}deg)`;
+            }, 2000);
+        }
+        rotateNeedle();
+    </script>
+</body>
+</html>

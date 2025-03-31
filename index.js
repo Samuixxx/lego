@@ -1,12 +1,8 @@
 const { app, BrowserWindow, screen, ipcMain } = require('electron');
-const RootPath = require('app-root-path');
 const path = require('path');
 
 // utils imports
 const { maximizeWindow, minimizeWindow, closeWindow, updateSslCert } = require('./utils/utils.js');
-
-// getting root path
-__dirname = RootPath.path;
 
 function createWindow() {
     // getting user viewport dimension

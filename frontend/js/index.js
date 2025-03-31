@@ -16,8 +16,6 @@ document.addEventListener("DOMContentLoaded", () => {
         console.log("Error occurred");
     }
 
-    let videoChunks = []; // variabile per salvare i chunk di video inviati al client dal server websocket
-
     socket.onmessage = function (event) {
         try {
             const response = JSON.parse(event.data);
@@ -30,24 +28,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 console.log("Motore spento:", response);
                 legoStatusButton.classList.remove("on");
                 legoStatusButton.classList.add("off");
-            } else if (response.ok && response.videoStarted && response.frame && response.zoomFactor) {
+            } else if (response.ok && response.streaming && response.frame) {
                 updateCamera(response.frame); // aggiorno l'immagine della videocamera con le risposte inviate dal socket server
-            } else if (response.ok && response.nightModeStatus) {
-                console.log(" Visione notturna:", response);
-            } else if(response.sendingvideo && response.videoChunk){
-                let binaryData = Uint8Array.from(atob(data.videoChunk), c => c.charCodeAt(0));
-                videoChunks.push(binaryData);
-            } else if(response.ok && response.videoCompleted){
-                let videoBlob = new Blob(videoChunks, { type: 'video/x-msvideo' });
-                let videoUrl = URL.createObjectURL(videoBlob); // creo un url per il video mandato dal server socket
-                let a = document.createElement("a");
-                a.style.visibility = "hidden";
-                a.href = videoUrl;
-                a.download = "../../backend/recorded_video.avi";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                videoChunks = []; // pulisco la variabile per salvare i chunk dei futuri video
+            } else if (response.ok && response.photoPath) {
+                showNoty("success", `Nuova immagine salvata: ${response.photoPath}`);
+            } else if (response.ok && response.videoPath) {
+                showNoty("success", `Nuova video salvato: ${response.videoPath}`);
+            } else if (response.ok && response.motorspeed !== undefined) {
+                updateSpeed(response.motorspeed);
+            } else if (response.ok && response.angle !== undefined) {
+                console.log(response.angle);
+                updateAngle(response.angle);
             }
         } catch (error) {
             console.error("Errore nella risposta WebSocket:", error);
@@ -56,13 +47,82 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     /**
+    * Event Listener for Keyboard Input to Control Movement.
+    *
+    * This function listens for keyboard events and sends messages over a socket connection 
+    * to control movement based on the pressed keys. It maintains a Set of active keys 
+    * to allow simultaneous movement commands.
+    *
+    * @param {KeyboardEvent} event - The keyboard event object containing key press information.
+    * @returns {void}
+    */
+
+
+    document.addEventListener("keydown", (event) => {
+        switch (event.key) {
+            case 'w':
+                socket.send(JSON.stringify({ type: "move-forward", content: "" }));
+                break;
+            case 's':
+                socket.send(JSON.stringify({ type: "move-backward", content: "" }));
+                break;
+            case 'a':
+                socket.send(JSON.stringify({ type: "turn-left", content: "" }));
+                break;
+            case 'd':
+                socket.send(JSON.stringify({ type: "turn-right", content: "" }));
+                break;
+        }
+    });
+
+    /**
+     * Event Listener for Key Up Events.
+     * 
+     * This function listens for keyup events and removes the released key from the Set.
+     * It ensures that movement stops when no relevant keys are pressed.
+     *
+     * @param {KeyboardEvent} event - The keyup event object.
+     * @returns {void}
+     */
+
+    document.addEventListener("keyup", (event) => {
+        switch (event.key) {
+            case 'w':
+                socket.send(JSON.stringify({ type: "stop-moving", content: "" }));
+                break;
+            case 's':
+                socket.send(JSON.stringify({ type: "stop-moving", content: "" }));
+                break;
+            case 'a':
+                socket.send(JSON.stringify({ type: "unturn-left", content: "" }));
+                break;
+            case 'd':
+                socket.send(JSON.stringify({ type: "unturn-right", content: "" }));
+                break;
+
+        }
+    });
+
+
+    /**
+ * Updates the rotation angle of a compass needle element.
+ * 
+ * @param {number} angle - The angle in degrees to rotate the compass needle.
+ * @returns {void}  This function modifies the DOM element directly and doesn't return a value.
+ */
+
+    const updateAngle = (angle) => {
+        const needle = document.querySelector('.compass-needle');
+        needle.style.transformOrigin = 'bottom center';
+        needle.style.transform = `translateY(-${needle.offsetHeight}px) rotate(${angle}deg)`;
+    }
+    /**
  * Updates the camera preview on a canvas element.  This function takes a base64 encoded JPEG image frame and renders it onto a canvas.  Handles resizing the canvas to match the image dimensions.
 
  * @param {string} frame -immagine jpg codificata con base64 che rappresenta il frame della videocamera.
  * @returns {void} 
  */
     const updateCamera = (frame) => {
-        const frame = response.frame;
         const canvas = document.getElementById('camera-canvas');
         const ctx = canvas.getContext('2d');
         const image = new Image();
@@ -85,6 +145,58 @@ document.addEventListener("DOMContentLoaded", () => {
         };
 
         image.src = `data:image/jpeg;base64,${frame}`;
+    }
+
+    /**
+ * Updates the displayed speed and its color based on the provided speed value.
+ * 
+ * @param {number} speed - The speed value in km/h.  Negative values indicate reverse.
+ * @returns {void}
+ */
+
+
+    const updateSpeed = (speed) => {
+        const speedIndicator = document.getElementById("speed-indicator");
+
+        speed = Number(speed);
+
+        // Determina il valore da visualizzare per la velocità
+        const displaySpeed = speed === 0 ? 0 : Math.abs(speed);
+
+        // Determina il colore in base alla direzione
+        let color;
+        if (speed < 0) {
+            color = "red";  // Retromarcia (negativa)
+        } else if (speed === 0) {
+            color = "var(--text-color-secondary)";  // Velocità zero
+        } else {
+            color = "var(--text-color-primary)";  // Movimento in avanti
+        }
+
+        // Mostra la velocità e imposta il colore
+        speedIndicator.textContent = `${displaySpeed} km/h`;
+        speedIndicator.style.color = color;
+    };
+
+    /**
+ * Displays a notification using the Noty library.
+ * 
+ * @function showNoty
+ * @param {string} [type="success"] - The type of notification (e.g., "success", "error", "warning", "info"). Defaults to "success".
+ * @param {string} text - The text content of the notification.
+ * @param {number} [timeout=5000] - The duration (in milliseconds) to display the notification before automatically closing. Defaults to 5000ms (5 seconds).
+ * @returns {void}  
+ */
+
+
+    const showNoty = (type = "success", text, timeout = 5000) => {
+        new Noty({
+            type: type,
+            layout: "topRight",
+            text: text,
+            timeout: timeout,  // Scompare dopo 5 secondi
+            progressBar: true
+        }).show();
     }
 
     // selecting window controls button
@@ -247,11 +359,26 @@ document.addEventListener("DOMContentLoaded", () => {
     const legoStatusButton = document.getElementById("lego-power-button");
     legoStatusButton.addEventListener("click", () => {
         socket.send(JSON.stringify({ type: "toggle-motor-status", content: "" }));
+    
+        // Alterna tra "on" e "off"
+        legoStatusButton.classList.toggle("on");
+        legoStatusButton.classList.toggle("off");
+    });
+
+    // Image controls button
+    const takePictureButton = document.getElementById("take-picture");
+    takePictureButton.addEventListener("click", () => {
+        if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "take-picture", content: "" }));
+        } else {
+            console.log("Can't take picture, socket is not connected");
+            return;
+        }
     });
 
     // video controls button
-    const startButton = document.getElementById("startRecording");
-    const stopButton = document.getElementById("stopRecording");
+    const startButton = document.getElementById("start-recording");
+    const stopButton = document.getElementById("stop-recording");
 
     startButton.addEventListener("click", () => {
         if (socket.readyState === WebSocket.OPEN) {
@@ -328,13 +455,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // creating nouislider.js vertical bar to camera zoomer
     const zoomer = document.getElementById("camera-zoom-value");
     noUiSlider.create(zoomer, {
-        start: [1.5],
+        start: [1],
         orientation: 'vertical',
         direction: 'rtl',
         connect: [true, false],
         range: {
-            min: 1,
-            max: 3.5
+            min: 0.5,
+            max: 3
         },
         step: 0.1,
         tooltips: true,
