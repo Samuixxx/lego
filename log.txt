@@ -4359,3 +4359,20 @@ websockets.exceptions.ConnectionClosedError: no close frame received or sent
 2025-03-31 21:17:20 [INFO] Foto salvata con successo: c:\Users\Utente\Desktop\py\legoController\backend\user\photos\picture_31-03-2025_21-17-20.jpg
 2025-03-31 21:17:24 [ERROR] Errore imprevisto durante lo streaming: received 1001 (going away); then sent 1001 (going away)
 2025-03-31 21:17:24 [INFO] Streaming video terminato.
+2025-04-01 16:37:51 [INFO] server listening on 127.0.0.1:8765
+2025-04-01 16:37:51 [INFO] server listening on [::1]:8765
+2025-04-01 16:37:51 [INFO] Server WebSocket avviato su wss://localhost:8765
+2025-04-01 16:38:00 [INFO] connection open
+2025-04-01 16:38:00 [INFO] Nuovo client connesso!
+2025-04-01 16:38:03 [INFO] Calibrazione della fotocamera caricata correttamente.
+2025-04-01 16:38:03 [INFO] Mappe di distorsione calcolate con successo.
+2025-04-01 16:38:03 [INFO] Avvio video
+2025-04-01 16:38:03 [INFO] Avvio streaming video con zoom...
+2025-04-01 16:38:30 [ERROR] Errore imprevisto durante lo streaming: received 1001 (going away); then sent 1001 (going away)
+2025-04-01 16:38:31 [INFO] Streaming video terminato.
+2025-04-01 16:38:54 [INFO] connection open
+2025-04-01 16:38:54 [INFO] Nuovo client connesso!
+2025-04-01 16:38:57 [INFO] Calibrazione della fotocamera caricata correttamente.
+2025-04-01 16:38:57 [INFO] Mappe di distorsione calcolate con successo.
+2025-04-01 16:38:57 [INFO] Avvio video
+2025-04-01 16:38:57 [INFO] Avvio streaming video con zoom...

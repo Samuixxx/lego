@@ -61,7 +61,10 @@ class MotorUtils:
         - Si assicura di non inviare dati ridondanti se l'angolo non cambia.  
         """
 
-        if self._is_turning or self.__is_motor_started:
+        if not self.__is_motor_started:
+            return # evita esecuzioni se il motore è fermo
+
+        if self._is_turning or not self.__is_motor_started:
             return  # Evita esecuzioni multiple
         
         self._is_turning = True # imposto il flag che indica che sto sterzando
