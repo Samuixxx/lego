@@ -1,7 +1,25 @@
-import enum
+"""
+
+Nome: MotorUtils
+
+Descrizione:
+Modulo per la gestione del motore LEGO tramite PiStorms.
+Questo modulo fornisce una classe `MotorUtils` per controllare un motore LEGO, gestire il movimento 
+avanti e indietro, la rotazione e la velocità. Supporta anche la gestione del movimento in parallelo, 
+con funzionalità per la sterzata progressiva e il fermo graduale del motore. Le comunicazioni con il 
+client avvengono tramite WebSocket, consentendo il controllo remoto del motore.
+
+Dipendenze:
+- asyncio per la gestione delle operazioni asincrone.
+- json per la gestione della comunicazione dei dati tramite WebSocket (builtin).
+- utils.motor.motorenums per le definizioni di direzione, sterzata, velocità e controlli di sterzata.
+
+Autore: Zs
+Data di Creazione: 02-04-2025
+"""
+
 import asyncio
 import json
-import websockets
 from utils.motor.motorenums.direction import Direction
 from utils.motor.motorenums.turn import Turn
 from utils.motor.motorenums.speed_controls import SpeedControls
@@ -10,15 +28,19 @@ from utils.motor.motorenums.turn_controls import TurnControls
 
 class MotorUtils:
     """
-    Classe per la gestione del motore LEGO tramite WebSocket.
+    Classe per la gestione del motore LEGO tramite PiStorms.
 
-    Attributi:
+    Attributes:
         websocket (WebSocket): Connessione WebSocket per inviare aggiornamenti.
-        motor (oggetto): Rappresenta il motore fisico (da definire con PiStorms o altra libreria).
-        speed (int): Velocità attuale del motore.
-        direction (Direction): Direzione attuale del motore (fermo, avanti, indietro, ecc.).
-        is_moving (bool): Indica se il motore è in movimento.
-        UPDATE_VELOCITY_TIMELAPS (float): Intervallo di aggiornamento della velocità in secondi.
+        __is_motor_started (bool): Indica lo stato di accensione/spegnimento del motore del LEGO
+        __motor_1 (oggetto): Rappresenta il primo motore fisico usato per far avanzare o retrocedere il LEGO.
+        __motor_2 (oggetto): Rappresenta il secondo motore fisico usato per far avanzare o retrocedere il LEGO.
+        __turn_motor (oggetto): Rappresenta il terzo motore fisico usato per far sterzare il LEGO.
+        _move_speed (int): Velocità attuale del motore.
+        _turn_angle (int): Indica l'angolo di rotazione del motore.
+        _is_moving (bool): Indica se il motore è in movimento.
+        _is_turning (bool): Indica se il motore è in rotazione.
+        _UPDATE_VELOCITY_TIME_OFFSET (int): Indica il tempo di attesa per ogni ciclo nei metodi _turn e _unturn.
     """
 
     def __init__(self, websocket):
@@ -29,36 +51,42 @@ class MotorUtils:
             websocket (WebSocket): Connessione WebSocket per la comunicazione con il client.
         """
         self.websocket = websocket  # Connessione WebSocket per il controllo remoto
-        self.motor = None  # Placeholder per il motore fisico (da definire con PiStorms o altra libreria)
+        self.__is_motor_started = False # Variabile booleana che controlla che il client abbia acceso il motore prima di poter muovere il lego    
+        self.__motor_1 = None  # Primo motore -> Avanti/Indietro
+        self.__motor_2 = None  # Secondo motore -> Avanti/Indietro
+        self.__turn_motor = None # Terzo motore -> Destra/Sinistra
         self._move_speed = 0  # Velocità iniziale
         self._turn_angle = 0 # Angolo iniziale di rotazione
         self._is_moving = False  # Stato del movimento
         self._is_turning = False  # Stato della rotazione
         self._UPDATE_VELOCITY_TIME_OFFSET = 0.3  # Intervallo di aggiornamento della velocità in secondi
-        self.__is_motor_started = False # Variabile booleana che controlla che il client abbia acceso il motore prima di poter muovere il lego    
 
     def _toggle_motor_status(self) -> None:
         """ 
         Inverte lo stato del motore in risposta a una richiesta del client.  
         
         Se il motore è attivo, viene spento. Se è spento, viene attivato.  
+
+        Returns: 
+            None
         """
         self.__is_motor_started = not self.__is_motor_started
 
     async def _turn(self, side: Turn, additional_delay: float = 0.2) -> None:
         """ 
         Regola progressivamente l'angolo di sterzata per girare a sinistra o a destra.  
-        
-        Parametri:  
-        - `side` (Turn): Direzione della sterzata (sinistra o destra).  
-        - `additional_delay` (float, default 0.2): Ritardo aggiuntivo prima di fermare la sterzata.  
-        
-        Funzionamento:  
         - Se è già in corso una sterzata, la funzione esce immediatamente per evitare esecuzioni multiple.  
         - Modifica l'angolo di sterzata incrementandolo/decrementandolo progressivamente fino al massimo consentito.  
         - Interrompe l'incremento se il tasto viene rilasciato (`_stop_turning` diventa `True`).  
         - Invia l'angolo aggiornato al client tramite WebSocket.  
         - Si assicura di non inviare dati ridondanti se l'angolo non cambia.  
+        
+        Args:  
+        - `side` (Turn): Direzione della sterzata (sinistra o destra).  
+        - `additional_delay` (float, default 0.2): Ritardo aggiuntivo prima di fermare la sterzata.  
+
+        Returns:
+            None
         """
 
         if not self.__is_motor_started:
@@ -104,9 +132,6 @@ class MotorUtils:
         Stampa messaggi di debug per indicare quando l'angolo è già 0 e quando
         è stato riportato a 0.
 
-        Args:
-            self: L'istanza della classe che contiene l'angolo di rotazione e il websocket.
-
         Returns:
             None
         """
@@ -138,7 +163,8 @@ class MotorUtils:
         Se il motore è già in movimento, la velocità viene incrementata di 1, con un limite massimo impostato dal valore di `SpeedControls.MAXIMUM_PER_GEAR`.
         La funzione simula una pausa per consentire un incremento graduale della velocità. Se la velocità supera il limite, viene limitata al valore massimo consentito.
 
-        :return: La velocità corrente del motore dopo l'incremento.
+        Returns:
+            None
         """
         if self._is_moving:
             # Incrementa la velocità, ma non oltre il massimo consentito

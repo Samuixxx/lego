@@ -1,12 +1,15 @@
 """
-Modulo: speed_controls.py
+Modulo: speed_controls
 
 Descrizione:
 Questo modulo definisce un'enumerazione (SpeedControls) per rappresentare i limiti di velocità
 per diverse direzioni e marce di un veicolo.
 
-Autore: [Il tuo nome]
-Data: [Data di creazione o modifica]
+Dipendenze:
+- enum per la gestione dei settings per il motore tramite enumerazioni (`builtin`).
+
+Autore: Zs
+Data: 02/04/2025
 """
 
 import enum

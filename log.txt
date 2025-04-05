@@ -4376,3 +4376,71 @@ websockets.exceptions.ConnectionClosedError: no close frame received or sent
 2025-04-01 16:38:57 [INFO] Mappe di distorsione calcolate con successo.
 2025-04-01 16:38:57 [INFO] Avvio video
 2025-04-01 16:38:57 [INFO] Avvio streaming video con zoom...
+2025-04-01 16:42:32 [INFO] server listening on [::1]:8765
+2025-04-01 16:42:32 [INFO] server listening on 127.0.0.1:8765
+2025-04-01 16:42:32 [INFO] Server WebSocket avviato su wss://localhost:8765
+2025-04-01 16:42:40 [INFO] connection open
+2025-04-01 16:42:40 [INFO] Nuovo client connesso!
+2025-04-01 16:42:42 [INFO] Calibrazione della fotocamera caricata correttamente.
+2025-04-01 16:42:42 [INFO] Mappe di distorsione calcolate con successo.
+2025-04-01 16:42:42 [INFO] Avvio video
+2025-04-01 16:42:42 [INFO] Avvio streaming video con zoom...
+2025-04-01 16:44:17 [INFO] Client disconnesso
+2025-04-01 16:44:17 [ERROR] Errore imprevisto durante lo streaming: no close frame received or sent
+2025-04-01 16:44:17 [INFO] Streaming video terminato.
+2025-04-02 19:16:32 [INFO] server listening on 127.0.0.1:8765
+2025-04-02 19:16:32 [INFO] server listening on [::1]:8765
+2025-04-02 19:16:32 [INFO] Server WebSocket avviato su wss://localhost:8765
+2025-04-04 20:56:20 [INFO] server listening on [::1]:8765
+2025-04-04 20:56:20 [INFO] server listening on 127.0.0.1:8765
+2025-04-04 20:56:20 [INFO] Server WebSocket avviato su wss://localhost:8765
+2025-04-04 20:56:36 [INFO] connection open
+2025-04-04 20:56:36 [INFO] Nuovo client connesso!
+2025-04-04 20:56:36 [ERROR] connection handler failed
+Traceback (most recent call last):
+  File "C:\Users\Utente\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 376, in conn_handler
+    await self.handler(connection)
+  File "c:\Users\Utente\Desktop\py\legoController\backend\server.py", line 61, in handle_connection
+    camera_controller = CameraUtils(websocket=websocket, client_fps=client_fps)
+TypeError: CameraUtils.__init__() got an unexpected keyword argument 'client_fps'
+2025-04-04 20:57:03 [INFO] connection open
+2025-04-04 20:57:03 [INFO] Nuovo client connesso!
+2025-04-04 20:57:03 [ERROR] connection handler failed
+Traceback (most recent call last):
+  File "C:\Users\Utente\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 376, in conn_handler
+    await self.handler(connection)
+  File "c:\Users\Utente\Desktop\py\legoController\backend\server.py", line 61, in handle_connection
+    camera_controller = CameraUtils(websocket=websocket, client_fps=client_fps)
+TypeError: CameraUtils.__init__() got an unexpected keyword argument 'client_fps'
+2025-04-04 20:58:20 [INFO] server listening on 127.0.0.1:8765
+2025-04-04 20:58:20 [INFO] server listening on [::1]:8765
+2025-04-04 20:58:20 [INFO] Server WebSocket avviato su wss://localhost:8765
+2025-04-04 20:58:25 [INFO] connection open
+2025-04-04 20:58:25 [INFO] Nuovo client connesso!
+2025-04-04 20:58:27 [INFO] Calibrazione della fotocamera caricata correttamente.
+2025-04-04 20:58:27 [INFO] Mappe di distorsione calcolate con successo.
+2025-04-04 20:58:27 [INFO] Avvio video
+2025-04-04 20:58:27 [INFO] Avvio streaming video con zoom...
+2025-04-04 21:06:28 [INFO] Client disconnesso
+2025-04-04 21:06:28 [ERROR] Errore imprevisto durante lo streaming: no close frame received or sent
+2025-04-04 21:06:28 [INFO] Streaming video terminato.
+2025-04-04 21:06:32 [INFO] connection open
+2025-04-04 21:06:32 [INFO] Nuovo client connesso!
+2025-04-04 21:06:34 [INFO] Calibrazione della fotocamera caricata correttamente.
+2025-04-04 21:06:34 [INFO] Mappe di distorsione calcolate con successo.
+2025-04-04 21:06:34 [INFO] Avvio video
+2025-04-04 21:06:34 [INFO] Avvio streaming video con zoom...
+2025-04-04 21:06:40 [INFO] Client disconnesso
+2025-04-04 21:06:40 [ERROR] Errore imprevisto durante lo streaming: sent 1009 (message too big) frame with 82751 bytes after reading 1046291 bytes exceeds limit of 1048576 bytes; no close frame received
+2025-04-04 21:06:40 [INFO] Streaming video terminato.
+2025-04-04 21:08:49 [INFO] server listening on 127.0.0.1:8765
+2025-04-04 21:08:49 [INFO] server listening on [::1]:8765
+2025-04-04 21:08:49 [INFO] Server WebSocket avviato su wss://localhost:8765
+2025-04-04 21:08:56 [INFO] connection open
+2025-04-04 21:08:56 [INFO] Nuovo client connesso!
+2025-04-04 21:08:59 [INFO] Calibrazione della fotocamera caricata correttamente.
+2025-04-04 21:08:59 [INFO] Mappe di distorsione calcolate con successo.
+2025-04-04 21:08:59 [INFO] Avvio video
+2025-04-04 21:08:59 [INFO] Avvio streaming video con zoom...
+2025-04-04 21:09:28 [ERROR] Errore imprevisto durante lo streaming: received 1001 (going away); then sent 1001 (going away)
+2025-04-04 21:09:29 [INFO] Streaming video terminato.

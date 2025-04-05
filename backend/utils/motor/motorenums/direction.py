@@ -4,8 +4,11 @@ Modulo: direction.py
 Descrizione:
 Questo modulo definisce un'enumerazione (Direction) per rappresentare le direzioni di movimento di un motore.
 
-Autore: [Il tuo nome]
-Data: [Data di creazione o modifica]
+Dipendenze:
+- enum per la gestione delle direzioni tramite enumerazione (builtin).
+
+Autore: Zs
+Data: 02-05-2025
 """
 
 import enum

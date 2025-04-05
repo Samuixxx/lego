@@ -1,17 +1,20 @@
 import websockets
 import json
 import asyncio
+import base64
+from mutagen.mp3 import MP3
 import dotenv
 import os
 import logging
 import ssl
 from pathlib import Path
 import time
-# importing utils modules
 from utils.camera.CameraUtils import CameraUtils
 from utils.motor.MotorUtils import MotorUtils
+from utils.audio.AudioUtils import AudioUtils
 from utils.motor.motorenums.direction import Direction
 from utils.motor.motorenums.turn import Turn
+from serverutils import ServerUtils
 
 logging.basicConfig(
     level=logging.INFO, 
@@ -40,6 +43,7 @@ class Server:
         self.host = host # Server url
         self.ssl_context = ssl_context
         self._temp_side = Direction.STOP
+        self._temp_sound = None
 
     async def handle_connection(self, websocket):
         """
@@ -52,25 +56,37 @@ class Server:
         logging.info("Nuovo client connesso!")
         self.clients.add(websocket)
 
+        client_max_hz = ServerUtils.get_monitor_refresh_rate()
+
         # Creating instance of CameraUtils 
-        camera_controller = CameraUtils(websocket=websocket, client_fps=240)
+        camera_controller = CameraUtils(websocket=websocket, monitor_max_hz=client_max_hz)
         motor_controller = MotorUtils(websocket=websocket)
+        audio_controller = AudioUtils()
 
         try:
             async for message in websocket:
-                await self.handle_message(message, camera_controller, motor_controller)
+                await self.handle_message( message=message, 
+                                           camera_controller=camera_controller, 
+                                           motor_controller=motor_controller, 
+                                           audio_controller=audio_controller
+                                        )
         except websockets.exceptions.ConnectionClosed:
             logging.info("Client disconnesso")
         finally:
             self.clients.remove(websocket)
 
-    async def handle_message(self, message, camera_controller, motor_controller):
+    async def handle_message(self, message: dict, camera_controller: CameraUtils, motor_controller: MotorUtils, audio_controller: AudioUtils) -> None:
         """
         Gestisce un messaggio ricevuto da un client.
 
         Args:
             message (str): Il messaggio ricevuto.
-            camera_controller (CameraUtils): Camera controller instance
+            camera_controller (CameraUtils): Camera controller instance.
+            motor_controller (MotorUtils): Motor api to control LEGO.
+            audio_controller (AudioUtils): Audio controller instance.
+
+        Returns:
+            None.
         """
         try:
             data = json.loads(message)
@@ -152,8 +168,37 @@ class Server:
                 case "unturn-right":
                     # Esegui l'annullamento della sterzata verso destra senza movimento
                     asyncio.create_task(motor_controller._execute_move(self._temp_side, Turn.STRAIGHT))
+                
+                # Audio controller
+                case "new-audio":
+                    # Decodifica il contenuto Base64
+                    audio_ = base64.b64decode(content)
 
-                    
+                    # Definisci la cartella temporanea per i file audio
+                    TEMP_DIR_NAME = os.path.join("../user/audio/temp/")  # nome della cartella di upload dei file
+                    os.makedirs(TEMP_DIR_NAME, exist_ok=True)  # Creo la cartella se non esiste
+
+                    # Nome e percorso del file
+                    self._temp_sound = data["name"]  # Nome del file inviato dal client
+                    file_path = os.path.join(TEMP_DIR_NAME, self._temp_sound)  # Percorso del file temporaneo
+
+                    # Salva i dati decodificati nel file
+                    with open(file_path, "wb") as f:
+                        f.write(audio_)
+
+                    audio = MP3(file_path)
+                    duration = round(audio.info.length, 2)
+                    audio_name = os.path.basename(file_path)
+
+                    self.
+                    # Carica e riproduci il suono
+                    audio_controller._load_sound(name=self._temp_sound, file_path=file_path)  # Carica il file nel controller audio
+                    audio_controller._play_sound(name=self._temp_sound, channel=1) # riproduco il file sul primo canale
+
+                case "stop-audio":  
+                    # ferma l'audio in esecuzione
+                    if self._temp_sound:
+                        audio_controller._stop_sound(name=self._temp_sound, channel=1) # ferma l'audio corrente
         except json.JSONDecodeError:
             logging.error("Errore: Messaggio non è un JSON valido")
 
@@ -187,7 +232,8 @@ class Server:
             self.handle_connection,
             self.host,
             self.port,
-            ssl= self.ssl_context
+            ssl= self.ssl_context,
+            max_size=None
         )
 
         logging.info("Server WebSocket avviato su wss://%s:%s", self.host, self.port)

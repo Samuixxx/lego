@@ -1,5 +1,20 @@
+"""
+Modulo: turn_controls
+
+Descrizione:
+Questo modulo definisce una enumerazione per i controlli di sterzata.
+
+Dipendenze:
+- enum per la gestione dei controlli di sterzata tramite enumerazione (`builtin`).
+
+Autore: ZS
+Data: 2025-04-02
+"""
+
 import enum
 
 class TurnControls(enum.Enum):
-    """Enum for turn controls."""
-    MAXIMUM_TURN_ANGLE = 60               # Velocità massima per girare    
+    """
+    Enumerazione per i controlli di sterzata.
+    """
+    MAXIMUM_TURN_ANGLE = 60  # Angolo massimo di sterzata in gradi

@@ -271,28 +271,43 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     Dropzone.autoDiscover = false;
-
+    let drop_zone_preview = `
+        <div id="player">
+            <div id="progress-bar-container">
+                <div id="progress-bar"></div>
+            </div>
+            <span id="current-time">0:00</span> / <span id="total-time">0:00</span>
+        </div>
+    `;
     const songInputContainer = document.getElementById('song-input-container');
-    const songInputDisplay = document.getElementById('song-input-display');
-
-    const myDropzone = new Dropzone(songInputContainer, {
-        url: "#",
-        acceptedFiles: "audio/*",
+    const audio_input = new Dropzone(songInputContainer, {
+        url: '#',
+        paramName: "file",
         maxFiles: 1,
-        autoProcessQueue: false,
-        clickable: true,
-        previewsContainer: false,
-        createImageThumbnails: false,
-        init: function () {
-            this.on("addedfile", function (file) {
+        acceptedFiles: "audio/*",
+        dictDefaultMessage: "Trascina qui il tuo file audio o clicca per selezionare",
+        previewTemplate: drop_zone_preview,
+        init: function() {
+            this.on("addedfile", function(file) {
                 const reader = new FileReader();
-                reader.onload = function (event) {
-                    const audioData = event.target.result;
+    
+                reader.onload = function(event) {
+                    const base64Data = event.target.result.split(',')[1]; // Rimuove il prefisso `data:audio/...;base64,`
+                    const name = file.name;
+    
+                    // Invia il file tramite WebSocket
+                    socket.send(JSON.stringify({ 
+                        type: 'new-audio', 
+                        name: name, 
+                        content: base64Data 
+                    }));
                 };
-                reader.readAsDataURL(file);
+    
+                reader.readAsDataURL(file); // Converte direttamente in Base64
             });
         }
     });
+        
 
     /**
     * Updates the position of clock hands on an analog clock visual.  This function calculates the degree of rotation for each hand based on the current time and applies the rotation via CSS transforms.
