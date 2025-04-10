@@ -6,10 +6,12 @@ Questo modulo fornisce un metodo per ottenere la frequenza di aggiornamento del 
 compatibile con Windows, Linux, MacOS e Raspberry Pi.
 
 Dipendenze:
-- sys per accedere alla piattaforma del client (`builtin`).
-- ctypes per creare un'istanza dell'api windows di gestione dello schermo (`builtin`).
-- subprocess per aprire un cmd ed eseguire un comando senza doverlo far fare all'utente (`builtin`).
+- sys per accedere alla piattaforma del client.
+- ctypes per creare un'istanza dell'api windows di gestione dello schermo.
+- subprocess per aprire un cmd ed eseguire un comando senza doverlo far fare all'utente.
 - cv2 per ottenere la lunghezza e l'altezza supportate dalla videocamera del client.
+- logging per configurare le impostazioni di logging del server.
+- os per utils di directory.
 
 Autore: ZS
 Data: 2025-04-02
@@ -19,6 +21,8 @@ import sys
 import ctypes
 import subprocess
 import cv2
+import logging
+import os
 
 class ServerUtils:
     """
@@ -81,3 +85,32 @@ class ServerUtils:
 
         cap.release()  # Rilascia la videocamera
         return width, height
+    
+    @staticmethod
+    def configure_logging():
+        """
+        Configura il sistema di logging dell'applicazione.
+
+        Imposta un formato standard per i messaggi di log, salva i log in un file "log.txt"
+        e li visualizza anche sul terminale. Riduce al minimo i messaggi di default di Pygame
+        impostando il livello di logging del modulo "pygame" a CRITICAL.
+
+        Returns:
+            None
+        """
+        # Configurazione del sistema di logging
+        logging.basicConfig(
+            level=logging.INFO,  # Livello di logging: INFO
+            format="%(asctime)s [%(levelname)s] %(message)s",  # Formato del messaggio di log
+            datefmt="%Y-%m-%d %H:%M:%S",  # Formato della data/ora
+            handlers=[
+                logging.FileHandler(os.path.join(os.getcwd(), "log.txt")),  # Salva i log in un file
+                logging.StreamHandler()  # Visualizza i log sul terminale
+            ]
+        )
+
+        # Riduci al minimo i messaggi di default di Pygame
+        logging.getLogger("pygame").setLevel(logging.CRITICAL)
+
+        # Messaggio di conferma
+        logging.info("Logging configurato correttamente. I log verranno salvati in 'log.txt'.")

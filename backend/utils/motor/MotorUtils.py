@@ -108,7 +108,7 @@ class MotorUtils:
                 break  # Evita di inviare dati ripetuti
             
             self._turn_angle = new_angle # imposto _turn_angle come new_angle per aggiornare la condizione del while
-            await self.websocket.send(json.dumps({"ok": True, "angle": self._turn_angle})) # mando i dati al client
+            await self.websocket.send(json.dumps({"ok": True, "motorangle": self._turn_angle})) # mando i dati al client
             await asyncio.sleep(0.01)
         
         self._is_turning = False
@@ -151,7 +151,7 @@ class MotorUtils:
             self._turn_angle -= turn_increment
 
             # Invia l'angolo aggiornato al client
-            await self.websocket.send(json.dumps({"ok": True, "angle": self._turn_angle}))
+            await self.websocket.send(json.dumps({"ok": True, "motorangle": self._turn_angle}))
             await asyncio.sleep(0.1)
 
         print("Angolo riportato a 0.")

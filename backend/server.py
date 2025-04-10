@@ -2,8 +2,8 @@ import websockets
 import json
 import asyncio
 import base64
-from mutagen.mp3 import MP3
-import dotenv
+from mutagen import File
+from dotenv import load_dotenv, get_key
 import os
 import logging
 import ssl
@@ -16,15 +16,7 @@ from utils.motor.motorenums.direction import Direction
 from utils.motor.motorenums.turn import Turn
 from serverutils import ServerUtils
 
-logging.basicConfig(
-    level=logging.INFO, 
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[
-        logging.FileHandler(os.path.join(os.getcwd(), "log.txt")),
-        logging.StreamHandler()
-    ]
-)
+ServerUtils.configure_logging()
 
 class Server:
     """
@@ -68,14 +60,15 @@ class Server:
                 await self.handle_message( message=message, 
                                            camera_controller=camera_controller, 
                                            motor_controller=motor_controller, 
-                                           audio_controller=audio_controller
+                                           audio_controller=audio_controller,
+                                           websocket=websocket
                                         )
         except websockets.exceptions.ConnectionClosed:
             logging.info("Client disconnesso")
         finally:
             self.clients.remove(websocket)
 
-    async def handle_message(self, message: dict, camera_controller: CameraUtils, motor_controller: MotorUtils, audio_controller: AudioUtils) -> None:
+    async def handle_message(self, message: dict, camera_controller: CameraUtils, motor_controller: MotorUtils, audio_controller: AudioUtils, websocket) -> None:
         """
         Gestisce un messaggio ricevuto da un client.
 
@@ -186,43 +179,38 @@ class Server:
                     with open(file_path, "wb") as f:
                         f.write(audio_)
 
-                    audio = MP3(file_path)
-                    duration = round(audio.info.length, 2)
-                    audio_name = os.path.basename(file_path)
+                    audio = File(file_path, easy=True)
+                    seconds_duration = round(audio.info.length)
+                    minutes = seconds_duration // 60 # Trovo la lunghezza in minuti dell'audio
+                    seconds = seconds_duration % 60 # Trovo la lunghezza in secondi dell'audio
+                    duration = f"{minutes}:{seconds}" # Formatto la stringa per inviarla al client
 
-                    self.
+                    await websocket.send(json.dumps({ "ok": True, "audioDuration": duration, "audioName": self._temp_sound[:25]}))
                     # Carica e riproduci il suono
-                    audio_controller._load_sound(name=self._temp_sound, file_path=file_path)  # Carica il file nel controller audio
-                    audio_controller._play_sound(name=self._temp_sound, channel=1) # riproduco il file sul primo canale
+                    audio_controller.load_sound(name=self._temp_sound, file_path=file_path)  # Carica il file nel controller audio
+                    asyncio.create_task(audio_controller.play_sound(name=self._temp_sound, channel=1, websocket=websocket)) # riproduco il file sul primo canale
 
-                case "stop-audio":  
+                case "pause-audio":  
                     # ferma l'audio in esecuzione
                     if self._temp_sound:
-                        audio_controller._stop_sound(name=self._temp_sound, channel=1) # ferma l'audio corrente
+                        audio_controller.pause_sound(channel=1)
+                case "resume-audio":
+                    # riprende l'audio in pausa
+                    if self._temp_sound:
+                        audio_controller.resume_sound(channel=1)
+                
+                case "toggle-mute":
+                    # muto l'audio in esecuzione
+                    if self._temp_sound:
+                        audio_controller.toggle_mute(self._temp_sound)
+                
+                case "toggle-loop":
+                    # imposto il loop per l'audio in esecuzione
+                    if self._temp_sound:
+                        audio_controller.toggle_loop(self._temp_sound)
+
         except json.JSONDecodeError:
             logging.error("Errore: Messaggio non è un JSON valido")
-
-
-    async def _continuous_movement(self, motor_controller):
-        """Loop asincrono per eseguire movimenti continui basati sul set."""
-        while self._forward or self._backward or self._left or self._right:
-            direction = Direction.STOP
-            turn = Turn.STRAIGHT
-
-            if self._forward:
-                direction = Direction.FORWARD
-            elif self._backward:
-                direction = Direction.BACKWARD
-
-            if self._left:
-                turn = Turn.LEFT
-            elif self._right:
-                turn = Turn.RIGHT
-
-            await motor_controller._execute_move(direction, turn)
-            await asyncio.sleep(0.05)  # Aggiorna ogni 50ms
-
-        await motor_controller._execute_move(Direction.STOP, Turn.STRAIGHT) #stop when no movement is setted
 
     async def start_server(self):
         """
@@ -241,9 +229,9 @@ class Server:
         await server.wait_closed()
 
 if __name__ == "__main__":
-    dotenv.load_dotenv()
-    port = int(os.getenv("PORT", 8765))
-    host = os.getenv("HOST", "localhost")
+    load_dotenv()
+    port = int(get_key(".env", "PORT"))
+    host = get_key(".env", "URL")
 
     # Percorsi assoluti dei certificati
     _dirname = Path(__file__).parent

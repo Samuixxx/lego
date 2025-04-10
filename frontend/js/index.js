@@ -1,6 +1,43 @@
+/**
+ * @file index.js
+ * @description File principale per la gestione delle risorse disponibili di utilizzo del lego (client-side).
+ * @author Zs
+ * @version 1.0.0
+ * @date 02-04-2025
+ */
+
 document.addEventListener("DOMContentLoaded", () => {
 
-    // creating new websocket instance
+    // ===================== CONFIGURAZIONE BOTTONI PER GESTIRE IL BROWSER  WINDOW (MASSIMIZZAZIONE, MINIMIZZAZIONE, CHIUSURA) =====================
+    const maximizeWindowButton = document.querySelector(".maximize-button");
+    const minimizeWindowButton = document.querySelector(".minimize-button");
+    const closeWindowButton = document.querySelector(".close-button");
+
+    if (!maximizeWindowButton || !minimizeWindowButton || !closeWindowButton) {
+        console.error("Window control buttons not found.");
+        return;
+    }
+
+    /**
+ * Object containing functions for controlling application windows.  Provides methods to maximize, minimize, and close the window via communication with a window API.
+
+ * @type {Object}
+ * @property {function} maximize - Sends a message to maximize the application window.
+ * @property {function} minimize - Sends a message to minimize the application window.
+ * @property {function} close - Sends a message to close the application window.
+ */
+
+    const windowControls = {
+        maximize: () => window.windowapi.send("maximize-window", {}),
+        minimize: () => window.windowapi.send("minimize-window", {}),
+        close: () => window.windowapi.send("close-window", {})
+    };
+
+    maximizeWindowButton.addEventListener("click", windowControls.maximize);
+    minimizeWindowButton.addEventListener("click", windowControls.minimize);
+    closeWindowButton.addEventListener("click", windowControls.close);
+
+    // ===================== CONFIGURAZIONE CLIENT SOCKET =====================
     const socket = new WebSocket("wss://localhost:8765");
 
     socket.onopen = () => {
@@ -21,24 +58,33 @@ document.addEventListener("DOMContentLoaded", () => {
             const response = JSON.parse(event.data);
 
             if (response.ok && response.motorStarted) {
-                console.log("Motore avviato:", response);
                 legoStatusButton.classList.remove("off");
                 legoStatusButton.classList.add("on");
-            } else if (response.ok && response.motorTurnedoff) {
-                console.log("Motore spento:", response);
+            }
+            else if (response.ok && response.motorTurnedoff) {
                 legoStatusButton.classList.remove("on");
                 legoStatusButton.classList.add("off");
-            } else if (response.ok && response.streaming && response.frame) {
-                updateCamera(response.frame); // aggiorno l'immagine della videocamera con le risposte inviate dal socket server
-            } else if (response.ok && response.photoPath) {
+            }
+            else if (response.ok && response.streaming && response.frame) {
+                updateCamera(response.frame);
+            }
+            else if (response.ok && response.photoPath) {
                 showNoty("success", `Nuova immagine salvata: ${response.photoPath}`);
-            } else if (response.ok && response.videoPath) {
+            }
+            else if (response.ok && response.videoPath) {
                 showNoty("success", `Nuova video salvato: ${response.videoPath}`);
-            } else if (response.ok && response.motorspeed !== undefined) {
+            }
+            else if (response.ok && response.motorspeed !== undefined) {
                 updateSpeed(response.motorspeed);
-            } else if (response.ok && response.angle !== undefined) {
-                console.log(response.angle);
-                updateAngle(response.angle);
+            }
+            else if (response.ok && response.motorangle !== undefined) {
+                updateAngle(response.motorangle);
+            }
+            else if (response.ok && response.audioDuration && response.audioName) {
+                updateSongPreview(response.audioName, response.audioDuration);
+            }
+            else if (response.ok && response.currentAudioTime) {
+                updateSongTime(response.currentAudioTime);
             }
         } catch (error) {
             console.error("Errore nella risposta WebSocket:", error);
@@ -56,7 +102,6 @@ document.addEventListener("DOMContentLoaded", () => {
     * @param {KeyboardEvent} event - The keyboard event object containing key press information.
     * @returns {void}
     */
-
 
     document.addEventListener("keydown", (event) => {
         switch (event.key) {
@@ -99,11 +144,11 @@ document.addEventListener("DOMContentLoaded", () => {
             case 'd':
                 socket.send(JSON.stringify({ type: "unturn-right", content: "" }));
                 break;
-
         }
     });
 
 
+    // ===================== CONFIGURAZIONE DELLA ROTAZIONE DELL'AGO DELLA BUSSOLA QUANDO IL CLIENT STERZA =====================
     /**
  * Updates the rotation angle of a compass needle element.
  * 
@@ -116,12 +161,15 @@ document.addEventListener("DOMContentLoaded", () => {
         needle.style.transformOrigin = 'bottom center';
         needle.style.transform = `translateY(-${needle.offsetHeight}px) rotate(${angle}deg)`;
     }
+
+    // ===================== CONFIGURAZIONE DELLA VIDEOCAMERA QUANDO IL CLIENT RICEVE I FRAME OTTENUTI DAL SOCKET SERVER =====================
     /**
  * Updates the camera preview on a canvas element.  This function takes a base64 encoded JPEG image frame and renders it onto a canvas.  Handles resizing the canvas to match the image dimensions.
 
  * @param {string} frame -immagine jpg codificata con base64 che rappresenta il frame della videocamera.
  * @returns {void} 
  */
+
     const updateCamera = (frame) => {
         const canvas = document.getElementById('camera-canvas');
         const ctx = canvas.getContext('2d');
@@ -147,13 +195,13 @@ document.addEventListener("DOMContentLoaded", () => {
         image.src = `data:image/jpeg;base64,${frame}`;
     }
 
+    // ===================== CONFIGURAZIONE DISPLAY DELLA VELOCITÁ QUANDO IL CLIENT ACCELLERA =====================
     /**
  * Updates the displayed speed and its color based on the provided speed value.
  * 
  * @param {number} speed - The speed value in km/h.  Negative values indicate reverse.
  * @returns {void}
  */
-
 
     const updateSpeed = (speed) => {
         const speedIndicator = document.getElementById("speed-indicator");
@@ -178,6 +226,7 @@ document.addEventListener("DOMContentLoaded", () => {
         speedIndicator.style.color = color;
     };
 
+    // ===================== CONFIGURAZIONE DELLE NOTIFICHE MOSTRATE QUANDO IL CLIENT RICEVE I PERCORSI DOVE SONO SALVATE LE IMMAGINI/VIDEO CHE HA RICHIESTO =====================
     /**
  * Displays a notification using the Noty library.
  * 
@@ -187,7 +236,6 @@ document.addEventListener("DOMContentLoaded", () => {
  * @param {number} [timeout=5000] - The duration (in milliseconds) to display the notification before automatically closing. Defaults to 5000ms (5 seconds).
  * @returns {void}  
  */
-
 
     const showNoty = (type = "success", text, timeout = 5000) => {
         new Noty({
@@ -199,25 +247,54 @@ document.addEventListener("DOMContentLoaded", () => {
         }).show();
     }
 
-    // selecting window controls button
-    const maximizeWindowButton = document.querySelector(".maximize-button");
-    const minimizeWindowButton = document.querySelector(".minimize-button");
-    const closeWindowButton = document.querySelector(".close-button");
+    // ===================== CONFIGURAZIONE DELLA PREVIEW QUANDO IL CLIENT CARICA UNA CANZONE DA RIPRODURRE =====================
+    /**
+ * Updates the song preview elements with the provided title and duration.
+ * 
+ * @param {string} songTitle - The title of the song to display.
+ * @param {string} songDuration - The duration of the song to display.
+ * @returns {void}  
+ */
 
-    if (!maximizeWindowButton || !minimizeWindowButton || !closeWindowButton) {
-        console.error("Window control buttons not found.");
-        return;
+    let currentSongDuration;
+    const updateSongPreview = (songTitle, songDuration) => {
+        // istanzio il titolo della preview e la span che contiene la lunghezza del brano
+        const songPreviewTitle = document.getElementById("song-title");
+        const songPreviewDuration = document.getElementById("total-song-duration");
+
+        // Aggiorno i testo della preview 
+        songPreviewTitle.textContent = songTitle;
+        songPreviewDuration.textContent = songDuration;
+
+        // converto per utilità nel calcolare il valore della progress bar
+        const [minutes, seconds] = songDuration.split(":").map(Number);
+        currentSongDuration = minutes * 60 + seconds; // Store total duration in seconds
     }
 
-    const windowControls = {
-        maximize: () => window.windowapi.send("maximize-window", {}),
-        minimize: () => window.windowapi.send("minimize-window", {}),
-        close: () => window.windowapi.send("close-window", {})
-    };
+    // ===================== CONFIGURAZIONE DELL'INDICATORE DEI SECONDI DI RIPRODUZIONE ATTUALI E DELLA PROGRESS BAR =====================
 
-    maximizeWindowButton.addEventListener("click", windowControls.maximize);
-    minimizeWindowButton.addEventListener("click", windowControls.minimize);
-    closeWindowButton.addEventListener("click", windowControls.close);
+    /**
+ * Updates the displayed song time.
+ * 
+ * @param {string} songCurrentTime - The current time of the song to display.  Should be formatted appropriately for display.
+ * @returns {void}
+ */
+
+    const updateSongTime = (songCurrentTime) => {
+        if (!currentSongDuration) return;
+
+        const songPreviewTime = document.getElementById("current-song-time");
+        const progressBar = document.getElementById("progress-bar");
+
+        const minutes = Math.floor(songCurrentTime / 60);
+        const seconds = Math.floor(songCurrentTime % 60).toString().padStart(2, "0");
+        songPreviewTime.textContent = `${minutes}:${seconds}`;
+
+        const progressPercentage = (songCurrentTime / currentSongDuration) * 100;
+
+        // Animazione fluida della barra di progresso
+        gsap.to(progressBar, { width: `${progressPercentage}%`, duration: 0.3, ease: "power2.out", overwrite: true });
+    };
 
     const knobs = document.querySelectorAll('.volume-knob');
 
@@ -270,45 +347,115 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // ===================== CONFIGURAZIONE DROPZONE INPUT =====================
     Dropzone.autoDiscover = false;
-    let drop_zone_preview = `
+    const dropZonePreview = `
         <div id="player">
             <div id="progress-bar-container">
-                <div id="progress-bar"></div>
+                <span id="song-title">Nome Brano</span>
+                <div id="progress-bar-wrapper">
+                    <div id="progress-bar"></div>
+                </div>
             </div>
-            <span id="current-time">0:00</span> / <span id="total-time">0:00</span>
+            <div id="time-container">
+                <span id="current-song-time">0:00</span> / 
+                <span id="total-song-duration">0:00</span>
+            </div>
         </div>
     `;
-    const songInputContainer = document.getElementById('song-input-container');
-    const audio_input = new Dropzone(songInputContainer, {
-        url: '#',
+    const songInputContainer = document.getElementById("song-input-container");
+    const songInputDisplay = document.getElementById("song-input-display");
+
+    const audioInput = new Dropzone(songInputContainer, {
+        url: "#",
         paramName: "file",
         maxFiles: 1,
         acceptedFiles: "audio/*",
-        dictDefaultMessage: "Trascina qui il tuo file audio o clicca per selezionare",
-        previewTemplate: drop_zone_preview,
-        init: function() {
-            this.on("addedfile", function(file) {
+        previewTemplate: dropZonePreview,
+        init: function () {
+            this.on("addedfile", file => {
+                songInputDisplay.style.display = "none";
+
                 const reader = new FileReader();
-    
-                reader.onload = function(event) {
-                    const base64Data = event.target.result.split(',')[1]; // Rimuove il prefisso `data:audio/...;base64,`
-                    const name = file.name;
-    
-                    // Invia il file tramite WebSocket
-                    socket.send(JSON.stringify({ 
-                        type: 'new-audio', 
-                        name: name, 
-                        content: base64Data 
-                    }));
+                reader.onload = event => {
+                    if (socket.readyState === WebSocket.OPEN) {
+                        socket.send(JSON.stringify({
+                            type: "new-audio",
+                            name: file.name,
+                            content: event.target.result.split(",")[1] // Rimuove il prefisso `data:audio/...;base64,`
+                        }));
+                    }
                 };
-    
-                reader.readAsDataURL(file); // Converte direttamente in Base64
+                reader.readAsDataURL(file);
+            });
+
+            this.on("removedfile", () => {
+                songInputDisplay.style.display = "block";
             });
         }
     });
-        
 
+    // ===================== CONFIGURAZIONE BOTTONE PER METTERE IN PAUSA IL BRANO =====================
+    const pauseButton = document.getElementById("pause-current-song");
+    let isPaused = false;
+
+    /**
+ * Event listener for the pause button click.  Handles pausing and resuming audio playback via a WebSocket connection.
+ *
+ * @param {Event} event - The click event triggered on the pause button.  (Implicit parameter, not explicitly defined in the code)
+ * @returns {void}
+ */
+
+    pauseButton.addEventListener("click", () => {
+        if (socket.readyState !== WebSocket.OPEN) {
+            console.error("WebSocket non è connesso. Impossibile inviare il comando.");
+            return;
+        }
+
+        isPaused = !isPaused;
+        socket.send(JSON.stringify({ type: isPaused ? "pause-audio" : "resume-audio", content: "" }));
+
+        pauseButton.innerHTML = `<i class="fa-solid ${isPaused ? "fa-play" : "fa-pause"} fa-xl"></i>`;
+    });
+
+    // ===================== CONFIGURAZIONE BOTTONE PER MUTARE IL BRANO IN RIPRODUZIONE =====================
+    const muteButton = document.getElementById("mute-song");
+    let isMuted = false;
+
+    /**
+ * Event listener for mute button click.  Handles toggling the mute state via a WebSocket connection.
+ *
+ * @function
+ * @listens click
+ */
+
+    muteButton.addEventListener("click", () => {
+        if (socket.readyState !== WebSocket.OPEN) return;
+
+        socket.send(JSON.stringify({ type: "toggle-mute", content: "" }));
+
+        isMuted = !isMuted;
+        muteButton.innerHTML = `<i class="fa-solid ${isMuted ? "fa-volume-high" : "fa-volume-xmark"} fa-xl"></i>`;
+    });
+
+    // ===================== CONFIGURAZIONE BOTTONE PER METTEREI IL BRANO IN RIPRODUZIONE IN LOOP =====================
+    const loopButton = document.getElementById("toggle-song-loop");
+    let isLooping = false;
+
+    loopButton.addEventListener("click", () => {
+        if (socket.readyState !== WebSocket.OPEN) return;
+
+        socket.send(JSON.stringify({ type: "toggle-loop", content: "" }));
+
+        isLooping = !isLooping;
+        const icon = loopButton.getElementsByTagName("i")[0]; // Seleziona il primo elemento <i>
+
+        if (icon) {
+            icon.style.color = isLooping ? "var(--text-color-tertiary)" : "";
+        }
+    });
+
+    // ===================== CONFIGURAZIONE OROLOGIO ANALOGICO CHE SEGNA IL TEMPO ATTUALE =====================
     /**
     * Updates the position of clock hands on an analog clock visual.  This function calculates the degree of rotation for each hand based on the current time and applies the rotation via CSS transforms.
     *
@@ -374,7 +521,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const legoStatusButton = document.getElementById("lego-power-button");
     legoStatusButton.addEventListener("click", () => {
         socket.send(JSON.stringify({ type: "toggle-motor-status", content: "" }));
-    
+
         // Alterna tra "on" e "off"
         legoStatusButton.classList.toggle("on");
         legoStatusButton.classList.toggle("off");
