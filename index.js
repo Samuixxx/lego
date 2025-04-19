@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, ipcMain } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, session } = require('electron');
 const path = require('path');
 
 // utils imports
@@ -21,7 +21,6 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             sandbox: true,
-            contentSecurityPolicy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';"
         }
     });
 
@@ -33,12 +32,11 @@ function createWindow() {
     win.loadFile(defaultFile);
 
     win.webContents.openDevTools();
-
+    
     // Handle window close event
     win.on('closed', () => {
         win = null;
     });
-
     // ipcMain listener to real word (preload)
     ipcMain.on('maximize-window', () => {
         maximizeWindow(win, width, height);

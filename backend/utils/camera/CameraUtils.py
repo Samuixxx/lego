@@ -168,81 +168,72 @@ class CameraUtils:
             logging.exception(f"Errore imprevisto nella creazione delle mappe di distorsione: {e}")
             raise
 
-    async def startVideoStreaming(self):        
+    async def start_video_streaming(self):        
         """
-        Avvia lo streaming video con zoom ottimizzato, supportando modalità notturna, registrazione e cattura di foto.
-
-        Questa funzione gestisce lo streaming video in tempo reale, applica un fattore di zoom ai frame acquisiti dalla videocamera, 
-        e invia i frame tramite __websocket al client. Supporta anche la modalità notturna, la registrazione video e la cattura di foto.
+        Avvia lo streaming video con zoom, supportando modalità notturna, registrazione e cattura foto.
 
         Raises:
-            StreamingException: Se si verifica un errore durante la lettura dei frame, l'elaborazione o lo streaming.
-        
-        Returns:
-            None        
+            StreamingException: Se si verifica un errore durante la lettura, elaborazione o invio dei frame.
         """
         self._is_streaming = True
-        logging.info("Avvio streaming video con zoom...")
 
         try:
-            while self._is_streaming and self.__cap.isOpened():
+            if not self.__cap or not self.__cap.isOpened():
+                raise RuntimeError("La videocamera non è inizializzata correttamente.")
+
+            while self._is_streaming:
+                ret, frame = self.__cap.read()
+
+                if not ret:
+                    logging.warning("Frame non letto correttamente dalla videocamera.")
+                    break
+
                 try:
-                    # Legge il frame dalla videocamera
-                    ret, frame = self.__cap.read()
-
-                    if not ret:
-                        logging.warning("No camera is active")
-                        break
-
-                    # Applica il fattore di zoom
+                    # Applica zoom
                     processed_frame = self._apply_zoom(frame)
 
-                    # Applica la modalità notturna se abilitata dal client
+                    # Modalità notturna se abilitata
                     if self._night_mode == NightMode.ON:
                         processed_frame = self._apply_night_mode(processed_frame)
 
-                    # Converte il frame in formato RGB e lo comprime in JPEG
+                    # Conversione in RGB e codifica JPEG
                     rgb_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB)
-                    _, buffer = cv2.imencode(".jpg", rgb_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+                    success, buffer = cv2.imencode(".jpg", rgb_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
 
-                    # Scrive il frame nel file di registrazione se la registrazione è attiva
-                    if self._is_recording and self.__out is not None:
+                    if not success:
+                        raise ValueError("Impossibile codificare il frame in JPEG.")
+
+                    # Scrittura su file se registrazione attiva
+                    if self._is_recording and self.__out:
                         self.__out.write(processed_frame)
 
-                    # Salva una foto se richiesto
+                    # Cattura foto se richiesto
                     if self._want_photo:
                         self._want_photo = False
                         await self._save_photo(processed_frame)
 
-                    # Invia il frame via __websocket al client
+                    # Invio al client via websocket
                     await self.__websocket.send(json.dumps({
                         "ok": True,
                         "streaming": True,
                         "frame": base64.b64encode(buffer).decode("utf-8"),
                     }))
 
-                    # Controlla la frequenza di invio dei frame (basato sul frame rate del client)
                     await asyncio.sleep(1 / self._monitor_max_hz)
 
                 except cv2.error as e:
-                    # Gestione degli errori specifici di OpenCV
-                    logging.error(f"Errore OpenCV: {e}")
-                    self._is_streaming = False
-                    break  # Esce dal loop di streaming se l'errore è irreparabile
+                    logging.error(f"Errore OpenCV durante lo streaming: {e}")
+                    break
 
                 except Exception as e:
-                    # Gestione di qualsiasi altro tipo di errore
                     logging.error(f"Errore imprevisto durante lo streaming: {e}")
-                    self._is_streaming = False
-                    break  # Esce dal loop di streaming per evitare errori continui
+                    break
 
         except Exception as e:
-            logging.exception(f"Errore durante lo streaming video: {e}")
-            # Qui si registra un errore critico che potrebbe richiedere l'interruzione del processo
+            logging.exception(f"Errore all'inizio dello streaming video: {e}")
 
         finally:
-            # Libera le risorse (videocamera e video writer)
-            if self.__cap.isOpened():
+            if self.__cap and self.__cap.isOpened():
                 self.__cap.release()
             if self.__out:
                 self.__out.release()
@@ -250,7 +241,8 @@ class CameraUtils:
             self._is_streaming = False
             logging.info("Streaming video terminato.")
 
-    def setZoomValue(self, value: float):
+
+    def set_zoom_value(self, value: float):
         """
         Imposta il valore dello zoom quando il client lo modifica, assicurandosi che rientri nei limiti consentiti.
 
@@ -337,7 +329,7 @@ class CameraUtils:
                 logging.error(f"Errore durante il dezoom (grandangolo): {e}")
                 return frame
 
-    async def toggleNightMode(self, value: int):
+    async def toggle_night_mode(self, value: int):
         """
         Abilita o disabilita la modalità notte.
 
@@ -394,58 +386,58 @@ class CameraUtils:
             logging.error(f"Errore nell'applicazione della modalità notturna: {str(e)}")
             raise RuntimeError("Impossibile applicare la modalità notturna al frame.") from e
 
-
-    def startRecording(self):
+    def start_recording(self):
         """
-        Avvia la registrazione video utilizzando la videocamera attuale (self.__cap) e salva il video in un file temporaneo.
-
-        Se una registrazione è già in corso, viene emesso un avviso e la registrazione non viene avviata.
-        Il video registrato viene salvato come un file temporaneo nella cartella "user/videos".
-
-        La funzione imposta la risoluzione e il frame rate della videocamera e utilizza il codec 'DIVX' per la registrazione.
+        Avvia la registrazione video utilizzando la videocamera attuale (self.__cap)
+        e salva il video in un file temporaneo nella cartella "user/videos/temp".
 
         Raises:
-            FileNotFoundError: Se la cartella di salvataggio non può essere trovata o creata.
-            RuntimeError: Se la videocamera non può essere inizializzata o se la registrazione non può essere avviata.
-
-        Returns:
-            None.
+            RuntimeError: Se la videocamera o il VideoWriter non possono essere inizializzati.
         """
         if self._is_recording:
-            logging.warning("La registrazione è già in corso. Impossibile avviare una nuova registrazione.")
-            return  
+            logging.warning("La registrazione è già in corso. Impossibile avviarne un'altra.")
+            return
 
         try:
-            self._is_recording = True  # Segna che la registrazione è iniziata
+            if not self.__cap or not self.__cap.isOpened():
+                raise RuntimeError("La videocamera non è inizializzata correttamente.")
+
+            self._is_recording = True
+
+            # Percorso salvataggio
             temp_filename = "temp_video.avi"
-
-            # Definisce il percorso della cartella di salvataggio del file temporaneo
             save_dir = Path(__file__).parent.parent.parent / "user/videos/temp"
-            os.makedirs(save_dir, exist_ok=True)  # Crea la cartella se non esiste
-
-            # Definisce il percorso completo per il file temporaneo
+            os.makedirs(save_dir, exist_ok=True)
             temp_path = save_dir / temp_filename
 
-            # Ottiene le impostazioni della videocamera (frame rate, larghezza e altezza del frame)
-            cam_fps = int(self.__cap.get(cv2.CAP_PROP_FPS)) or 30
-            width = int(self.__cap.get(self._camera_width))
-            height = int(self.__cap.get(self._camera_height))
+            # Parametri camera
+            cam_fps = int(self.__cap.get(cv2.CAP_PROP_FPS))
+            cam_fps = cam_fps if cam_fps > 0 else 30
 
-            # Imposta il codec video e inizializza il VideoWriter
-            fourcc = cv2.VideoWriter_fourcc(*'DIVX')
+            width = int(self.__cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(self.__cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+            if width == 0 or height == 0:
+                logging.warning("Dimensioni non valide dalla camera. Uso fallback 640x480.")
+                width, height = 640, 480
+
+            logging.debug(f"FPS: {cam_fps}, Width: {width}, Height: {height}")
+
+            # Codec video e VideoWriter
+            fourcc = cv2.VideoWriter_fourcc(*'XVID')  # Codec più compatibile
             self.__out = cv2.VideoWriter(str(temp_path), fourcc, cam_fps, (width, height))
 
-            # Verifica che il VideoWriter sia stato creato correttamente
             if not self.__out.isOpened():
-                raise RuntimeError("Impossibile inizializzare il VideoWriter. Verifica la videocamera.")
+                raise RuntimeError("Impossibile inizializzare il VideoWriter. Verifica la videocamera o il codec.")
 
-            logging.info(f"Registrazione avviata. Salvataggio su: {temp_path}")
+            logging.info(f"Registrazione avviata. File: {temp_path}")
+
         except Exception as e:
             logging.error(f"Errore durante l'avvio della registrazione: {str(e)}")
-            self._is_recording = False  # In caso di errore, resetta lo stato di registrazione
+            self._is_recording = False
             raise
 
-    async def stopRecording(self):
+    async def stop_recording(self):
         """
         Termina la registrazione video e salva il file.
 
@@ -468,7 +460,7 @@ class CameraUtils:
             return  
 
         self._is_recording = False  # Segnala che la registrazione è terminata
-        base_dir = Path(__file__).parent.parent.parent
+        base_dir = Path(__file__).parent.parent.parent.parent
 
         if self.__out:
             self.__out.release()  # Rilascia il VideoWriter
@@ -504,7 +496,7 @@ class CameraUtils:
         else:
             logging.error("Errore: il file temporaneo non esiste, impossibile salvarlo.")
     
-    def wantPhoto(self):
+    def set_photo_request(self):
         """
         Imposta il flag `_want_photo` a `True`, segnalando la richiesta di acquisire una foto.
 
@@ -516,7 +508,6 @@ class CameraUtils:
             return
 
         self._want_photo = True
-        logging.info("Richiesta di acquisizione foto impostata.")
 
     async def _save_photo(self, frame):
         """

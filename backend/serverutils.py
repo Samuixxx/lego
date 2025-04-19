@@ -52,7 +52,7 @@ class ServerUtils:
                     if "*" in line:  # La frequenza di aggiornamento attuale è segnata con un asterisco
                         return int(float(line.split()[0]))
             except Exception:
-                return None  # Se il comando fallisce, restituisce None
+                return 30  
         
         elif sys.platform.startswith("raspberrypi"):  # Controllo per Raspberry Pi
             try:
@@ -61,7 +61,7 @@ class ServerUtils:
                     if "Hz" in part:
                         return int(float(part.split()[0]))
             except Exception:
-                return None  # Se il comando fallisce, restituisce None
+                return 30
         
         return None  # Se il sistema operativo non è supportato, restituisce None
     

@@ -11,7 +11,7 @@ client avvengono tramite WebSocket, consentendo il controllo remoto del motore.
 
 Dipendenze:
 - asyncio per la gestione delle operazioni asincrone.
-- json per la gestione della comunicazione dei dati tramite WebSocket (builtin).
+- json per la gestione della comunicazione dei dati tramite WebSocket.
 - utils.motor.motorenums per le definizioni di direzione, sterzata, velocità e controlli di sterzata.
 
 Autore: Zs
@@ -20,10 +20,15 @@ Data di Creazione: 02-04-2025
 
 import asyncio
 import json
+import websockets
+import time
+import websockets
+import logging
 from utils.motor.motorenums.direction import Direction
 from utils.motor.motorenums.turn import Turn
 from utils.motor.motorenums.speed_controls import SpeedControls
 from utils.motor.motorenums.turn_controls import TurnControls
+from utils.motor.motorenums.gears import Gear
 
 
 class MotorUtils:
@@ -32,7 +37,7 @@ class MotorUtils:
 
     Attributes:
         websocket (WebSocket): Connessione WebSocket per inviare aggiornamenti.
-        __is_motor_started (bool): Indica lo stato di accensione/spegnimento del motore del LEGO
+        _is_started (bool): Indica lo stato di accensione/spegnimento del motore del LEGO
         __motor_1 (oggetto): Rappresenta il primo motore fisico usato per far avanzare o retrocedere il LEGO.
         __motor_2 (oggetto): Rappresenta il secondo motore fisico usato per far avanzare o retrocedere il LEGO.
         __turn_motor (oggetto): Rappresenta il terzo motore fisico usato per far sterzare il LEGO.
@@ -50,29 +55,66 @@ class MotorUtils:
         Args:
             websocket (WebSocket): Connessione WebSocket per la comunicazione con il client.
         """
-        self.websocket = websocket  # Connessione WebSocket per il controllo remoto
-        self.__is_motor_started = False # Variabile booleana che controlla che il client abbia acceso il motore prima di poter muovere il lego    
-        self.__motor_1 = None  # Primo motore -> Avanti/Indietro
-        self.__motor_2 = None  # Secondo motore -> Avanti/Indietro
-        self.__turn_motor = None # Terzo motore -> Destra/Sinistra
-        self._move_speed = 0  # Velocità iniziale
-        self._turn_angle = 0 # Angolo iniziale di rotazione
-        self._is_moving = False  # Stato del movimento
-        self._is_turning = False  # Stato della rotazione
-        self._UPDATE_VELOCITY_TIME_OFFSET = 0.3  # Intervallo di aggiornamento della velocità in secondi
+        # from PiStorms import PiStorms
+        self.websocket = websocket 
+        self._is_started = False 
+        self._last_activation = None 
+        # self._psm = PiStorms()   
+        # self.__motor_1 = self._psm.BAM1
+        # self.__motor_2 = self._psm.BAM2
+        # self.__turn_motor = self._psm.BBM1
+        self._motor_gear = Gear.NEUTRAL 
+        self._turbo_value = 0
+        self._brake_intensity = 1
+        self._move_speed = 0  
+        self._turn_angle = 0 
+        self._is_moving = False  
+        self._is_turning = False  
+        self._UPDATE_VELOCITY_TIME_OFFSET = 0.3
 
-    def _toggle_motor_status(self) -> None:
-        """ 
-        Inverte lo stato del motore in risposta a una richiesta del client.  
-        
-        Se il motore è attivo, viene spento. Se è spento, viene attivato.  
+    async def toggle_motor_status(self) -> None:
+        """
+        Inverte lo stato del motore in risposta a una richiesta del client.
 
-        Returns: 
+        Se il motore è attivo, viene spento e viene calcolato il tempo di attivazione
+        dell'ultimo intervallo. Se è spento, viene attivato e il tempo viene azzerato.
+
+        Returns:
             None
         """
-        self.__is_motor_started = not self.__is_motor_started
+        current_time = time.time()
 
-    async def _turn(self, side: Turn, additional_delay: float = 0.2) -> None:
+        activation_time = None
+        if self._is_started:
+            activation_time = current_time - self._last_activation
+            self._last_activation = None
+        else:
+            self._last_activation = current_time
+
+        self._is_started = not self._is_started
+
+        try:
+            if self.websocket and activation_time is not None and hasattr(self, '_max_speed_reached'):
+                await self.websocket.send(json.dumps({
+                    "ok": True,
+                    "activationTime": activation_time,
+                    "maxSpeed": self._max_speed_reached
+                }))
+        except websockets.exceptions.ConnectionClosedError:
+            logging.error("WebSocket connection closed unexpectedly.")
+        except Exception as e:
+            logging.error(f"An error occurred while sending data via WebSocket: {e}")
+
+    def get_motor_status(self) -> bool:
+        """
+        Restituisce lo stato booleano dei motori.
+
+        Returns:
+            bool: True se i motori sono attivi, False altrimenti.
+        """
+        return self._is_started
+    
+    async def turn(self, side: Turn, delay: float = 0.2, turn_increment: int = 1) -> None:
         """ 
         Regola progressivamente l'angolo di sterzata per girare a sinistra o a destra.  
         - Se è già in corso una sterzata, la funzione esce immediatamente per evitare esecuzioni multiple.  
@@ -80,41 +122,50 @@ class MotorUtils:
         - Interrompe l'incremento se il tasto viene rilasciato (`_stop_turning` diventa `True`).  
         - Invia l'angolo aggiornato al client tramite WebSocket.  
         - Si assicura di non inviare dati ridondanti se l'angolo non cambia.  
-        
+
         Args:  
         - `side` (Turn): Direzione della sterzata (sinistra o destra).  
-        - `additional_delay` (float, default 0.2): Ritardo aggiuntivo prima di fermare la sterzata.  
+        - `delay` (float, default 0.2): Ritardo tra gli incrementi dell'angolo.  
+        - `turn_increment` (int, default 1): Incremento dell'angolo ad ogni iterazione.  
 
         Returns:
             None
         """
 
-        if not self.__is_motor_started:
-            return # evita esecuzioni se il motore è fermo
+        if not self._is_started:
+            return
 
-        if self._is_turning or not self.__is_motor_started:
-            return  # Evita esecuzioni multiple
-        
-        self._is_turning = True # imposto il flag che indica che sto sterzando
-        self._stop_turning = False # variabile per evitare che se rilascio il tasto prima del completamento del ciclo while continui ad incrementare i gradi
-        turn_increment = -1 if side == Turn.LEFT else 1 # calcolo l'incremento in base alla direzione del motore prima del controsterzo
-        max_angle = TurnControls.MAXIMUM_TURN_ANGLE.value # richiamo al valore massimo di angolatura dall'enum TurnControls
+        self._is_turning = True
+        self._stop_turning = False
+        turn_increment = -turn_increment if side == Turn.LEFT else turn_increment
+        max_angle = TurnControls.MAXIMUM_TURN_ANGLE.value
 
-        while self._turn_angle < max_angle and not self._stop_turning: # continuo il ciclo finche l'angolo non supera il limite massimo (max_angle) e non viene impostato a true il flag di _stop_turning in self._turn
-            new_angle = self._turn_angle + turn_increment # aggiungo l'incremento a self._turn_angle salvandolo in una nuova variabile
-            new_angle = max(-max_angle, min(new_angle, max_angle)) # calcolo il valore dell'angolo limitandolo tra -60 gradi e il minimo tra new_angle e max_angle -> sempre new_angle
-            
-            if new_angle == self._turn_angle: # controllo che new_angle non sia uguale a 
-                break  # Evita di inviare dati ripetuti
-            
-            self._turn_angle = new_angle # imposto _turn_angle come new_angle per aggiornare la condizione del while
-            await self.websocket.send(json.dumps({"ok": True, "motorangle": self._turn_angle})) # mando i dati al client
-            await asyncio.sleep(0.01)
-        
+        while not self._stop_turning and self._turn_angle != max_angle:
+            new_angle = self._turn_angle + turn_increment
+            new_angle = max(-max_angle, min(new_angle, max_angle))
+
+            if new_angle == self._turn_angle:
+                break
+
+            self._turn_angle = new_angle
+
+            # Controllo del motore di sterzo (opzionale)
+            # self.__turn_motor.runDegs(degs=turn_increment, speed=TurnControls.TURN_VELOCITY.value)
+
+            try:
+                await self.websocket.send(json.dumps({
+                    "ok": True,
+                    "motorangle": self._turn_angle,
+                    "direction": "left" if side == Turn.LEFT else "right"
+                }))
+            except Exception as e:
+                print(f"Errore durante l'invio dei dati al client: {e}")
+
+            await asyncio.sleep(delay=delay)
+
         self._is_turning = False
 
-
-    async def _unturn(self) -> None:
+    async def unturn(self, delay: float = 0.2) -> None:
         """
         Gradualmente riporta l'angolo di rotazione (`self._turn_angle`) a 0.
 
@@ -135,159 +186,198 @@ class MotorUtils:
         Returns:
             None
         """
-        if not self.__is_motor_started:
+        if not self._is_started:
             return  # Evita esecuzioni se il motore non è acceso
         
         if self._turn_angle == 0:
-            print("L'angolo è già a 0.")
             return  # Esci immediatamente se già a zero
         
         self._stop_turning = True
+        self._is_turning = True
 
         turn_increment = 1 if self._turn_angle > 0 else -1
 
-        while self._turn_angle != 0 and not self._is_turning:
+        while self._turn_angle != 0:
             # Decremento o incremento progressivamente l'angolo
-            self._turn_angle -= turn_increment
+            if abs(self._turn_angle) <= abs(turn_increment):
+                is_last_step = True
+                self._turn_angle = 0
+            else:
+                self._turn_angle -= turn_increment
 
+            """
+            self.__turn_motor.runDegs(degs=turn_increment, speed=TurnControls.TURN_VELOCITY.value, brakeOnCompletion=is_last_step)
+            """
             # Invia l'angolo aggiornato al client
-            await self.websocket.send(json.dumps({"ok": True, "motorangle": self._turn_angle}))
-            await asyncio.sleep(0.1)
-
-        print("Angolo riportato a 0.")
+            await self.websocket.send(json.dumps({
+                "ok": True,
+                "motorangle": self._turn_angle,
+                "straightening": True
+                }))
+            
+            await asyncio.sleep(delay=delay)
+        
+        self._is_turning = False
     
-    async def _move_forward(self) -> None:
+    async def move_forward(self) -> None:
         """
-        Avvia il movimento del motore in avanti, incrementando la velocità gradualmente.
+        Avvia il movimento del motore in avanti, incrementando automaticamente la velocità fino al limite massimo.
 
-        Se il motore è già in movimento, la velocità viene incrementata di 1, con un limite massimo impostato dal valore di `SpeedControls.MAXIMUM_PER_GEAR`.
-        La funzione simula una pausa per consentire un incremento graduale della velocità. Se la velocità supera il limite, viene limitata al valore massimo consentito.
+        La funzione controlla se la marcia corrente consente il movimento in avanti.
+        Se sì, attiva il movimento e inizia ad aumentare gradualmente la velocità a intervalli regolari,
+        fino a raggiungere il valore massimo consentito per la marcia attuale, eventualmente maggiorato dal valore turbo.
+
+        Durante ogni incremento, viene inviato un messaggio tramite WebSocket contenente la velocità attuale
+        e la velocità massima raggiunta fino a quel momento.
 
         Returns:
             None
         """
-        if self._is_moving:
-            # Incrementa la velocità, ma non oltre il massimo consentito
+
+        if self._motor_gear not in {Gear.FIRST.value, Gear.SECOND.value, Gear.THIRD.value, Gear.FOURTH.value}:
+            return
+
+        self._is_moving = True
+        max_speed = SpeedControls.MAXIMUM_PER_GEAR.value * int(self._motor_gear) + self._turbo_value
+
+        while self._move_speed < max_speed and self._move_speed < SpeedControls.MAXIMUM_VALOCITY_FORWARD.value:
             self._move_speed += 1
-            if self._move_speed > SpeedControls.MAXIMUM_PER_GEAR.value:
-                self._move_speed = SpeedControls.MAXIMUM_PER_GEAR.value
 
-            await self.websocket.send(json.dumps({
-                "ok": True, "motorspeed": self._move_speed
-            }))
+            if not hasattr(self, '_max_speed_reached') or self._move_speed > self._max_speed_reached:
+                self._max_speed_reached = self._move_speed
 
-            # Attende un intervallo per simulare un incremento graduale
+            try:
+                await self.websocket.send(json.dumps({
+                    "ok": True,
+                    "motorspeed": self._move_speed,
+                    "direction": "forward"
+                }))
+            except Exception as e:
+                print(f"[ERRORE] WebSocket non ha inviato il dato: {e}")
+
             await asyncio.sleep(self._UPDATE_VELOCITY_TIME_OFFSET)
 
-    async def _move_backward(self) -> None:
+
+    async def move_backward(self) -> None:
         """
-        Riduce gradualmente la velocità per muovere il motore all'indietro.
-        
-        - La velocità diminuisce di 1 a ogni iterazione.
-        - Se la velocità supera il limite negativo massimo, viene bloccata a quel valore.
-        - Introduce una pausa per simulare un rallentamento progressivo.
+        Metodo responsabile della retromarcia del veicolo
+        Decrementa gradualmente la velocità entro il limite per la retromarcia
         
         Returns:
             int: Velocità attuale dopo l'aggiornamento.
         """
-        additional_delay = 0.4  # Ritardo aggiuntivo per una transizione più fluida
 
-        if self._is_moving:
-            # Riduce la velocità per muovere il motore all'indietro
-            self._move_speed -= 1  
+        if self._motor_gear != Gear.RETRO.value: # controllo che la marcia sia inserita in retro sennò non eseguo niente
+            return
 
-            # Impedisce che la velocità superi il limite massimo negativo
-            max_backward_speed = -SpeedControls.MAXIMUM_VALOCITY_BACKWARD.value
-            if self._move_speed < max_backward_speed:
-                self._move_speed = max_backward_speed
+        self._is_moving = True
+        
+        while self._move_speed > -SpeedControls.MAXIMUM_VALOCITY_BACKWARD.value:
+
+            self._move_speed -= 1
+
+            if self.websocket:
+                try:
+                    # Invia il nuovo valore della velocità tramite WebSocket ad ogni ciclo
+                    await self.websocket.send(json.dumps({
+                        "ok": True,
+                        "motorspeed": self._move_speed,
+                        "direction": "backward"
+                    }))
+                except Exception as e:
+                    print(f"Errore durante l'invio dei dati al client: {e}")
+
+            await asyncio.sleep(self._UPDATE_VELOCITY_TIME_OFFSET)
+
+    async def stop(self) -> None:
+        """
+        Riduce gradualmente la velocità del motore fino a fermarlo completamente.
+
+        La decelerazione è dinamica: più alta è la velocità attuale, più rapido è l'arresto iniziale.
+        Man mano che la velocità diminuisce, il rallentamento diventa più dolce.
+        L'intensità della frenata è modulata da `self._brake_intensity` (0-100), dove un valore più alto
+        corrisponde a una frenata più rapida.
+
+        Durante il processo, la nuova velocità viene inviata al client ad ogni variazione.
+
+        Raises:
+            Exception: se la connessione websocket viene chiusa inaspettatamente.
+        """
+        if self._move_speed == 0:
+            return
+
+        if not self._is_moving:
+            return
+
+        self._is_moving = False
+
+        max_speed = abs(self._move_speed)
+        brake_factor = min(self._brake_intensity, 100) / 100
+        brake_factor = max(brake_factor, 0.05)
+
+        while self._move_speed != 0:
+            speed_ratio = abs(self._move_speed) / max_speed
+            delay = self._UPDATE_VELOCITY_TIME_OFFSET + (0.6 * speed_ratio)
+            delay *= (1 - brake_factor) ** 1.5
+
+            if self._move_speed > 0:
+                self._move_speed = max(0, self._move_speed - 1)
+            else:
+                self._move_speed = min(0, self._move_speed + 1)
 
             await self.websocket.send(json.dumps({
-                "ok": True, "motorspeed": self._move_speed
+                "ok": True,
+                "motorspeed": self._move_speed,
+                "stopping": True
             }))
 
-            # Pausa per simulare la riduzione graduale della velocità
-            await asyncio.sleep(self._UPDATE_VELOCITY_TIME_OFFSET + additional_delay)
+            await asyncio.sleep(delay)
 
-    async def _stop(self) -> None:
-        """
-        Ferma il movimento del motore riducendo gradualmente la velocità.
-
-        Se il motore è in movimento, la velocità viene ridotta gradualmente fino a zero. 
-        La velocità viene inviata al client ogni volta che cambia, per mantenere aggiornato 
-        lo stato sul lato client. Al termine del ciclo di decelerazione, la velocità viene 
-        impostata su zero e il motore viene fermato.
-
-        :return: La velocità finale del motore (zero).
-        """
-        additional_delay = 0
-        if self._move_speed != 0:
-            while self._move_speed != 0:
-                # Riduci la velocità gradualmente
-                if self._move_speed > 0:
-                    self._move_speed -= 1  # Decellero per tornare a 0 km/h
-                    if self._move_speed > 10:
-                        additional_delay = 0.1
-                    elif self._move_speed > 5:
-                        additional_delay = 0.3
-                    else:
-                        additional_delay = 0.5
-                elif self._move_speed < 0:
-                    self._move_speed += 1  # Decellero per tornare a 0 km/h
-                    if self._move_speed > -10:
-                        additional_delay = 0.5  # Ritardo per velocità basse in retromarcia
-                    elif -20 <= self._move_speed <= -10:
-                        additional_delay = 0.3  # Ritardo per velocità medie in retromarcia
-                    elif -35 >= self._move_speed >= -20:
-                        additional_delay = 0.1
-
-                # Invia la velocità aggiornata solo quando cambia
-                await self.websocket.send(json.dumps({
-                    "ok": True, "motorspeed": self._move_speed
-                }))
-
-                await asyncio.sleep(self._UPDATE_VELOCITY_TIME_OFFSET + additional_delay)
-
-        if self._move_speed == 0:
+        try:
             await self.websocket.send(json.dumps({
                 "ok": True, "motorspeed": 0
             }))
+        except websockets.exceptions.ConnectionClosedError as e:
+            raise Exception from e
 
-    async def _execute_move(self, direction: Direction, turn: Turn = Turn.STRAIGHT) -> None:
+    def set_gear(self, value: str) -> None:
         """
-        Avvia il movimento e la sterzata in parallelo utilizzando asyncio.gather.
+        Imposta la marcia del veicolo.
+        
+        Args:
+            value (str): La marcia da impostare. Le marce disponibili sono: "R, N, 1, 2, 3, 4"
+        
+        Returns:
+            None.
         """
+        self._motor_gear = value
 
-        if not self.__is_motor_started:
-            return
+    def set_turbo(self, value: int) -> None:
+        """
+        Imposta il valore del turbo tra 0 e 100.
 
-        if direction not in {Direction.FORWARD, Direction.BACKWARD, Direction.STOP}:
-            raise ValueError("Direzione non valida. Usa Direction.FORWARD, Direction.BACKWARD o Direction.STOP.")
+        Args:
+            value (int): Il valore da impostare come turbo.
 
-        if turn not in {Turn.LEFT, Turn.RIGHT, Turn.STRAIGHT}:
-            raise ValueError("Turn non valido. Usa Turn.LEFT, Turn.RIGHT o Turn.STRAIGHT.")
+        Returns:
+            None.
+        """
+        mapped_value = round(value * 0.4) 
+        self._turbo_value = mapped_value
 
-        self._is_moving = direction != Direction.STOP
-        self._is_turning = turn != Turn.STRAIGHT
+    def set_brake_value(self, value: int) -> None:
+        """
+        Imposta il valore del freno tra 0 e 100.
 
-        tasks = []
+        Args:
+            value (int): Il valore da impostare come moltiplicatore del freno.
 
-        # Avvia il movimento
-        match direction:
-            case Direction.FORWARD:
-                tasks.append(self._move_forward())
-            case Direction.BACKWARD:
-                tasks.append(self._move_backward())
-            case Direction.STOP:
-                tasks.append(self._stop())
+        Returns:
+            None.
+        """
+        mapped_value = round(value * 0.4, 1) 
+        self._brake_intensity = mapped_value
 
-        # Avvia la sterzata
-        if self._is_turning:
-            tasks.append(self._turn(turn))
-        elif self._turn_angle != 0:
-            tasks.append(self._unturn())
-
-        # Esegui le task in parallelo solo se ci sono task
-        await asyncio.gather(*tasks)
 
     
 

@@ -5,6 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lego dashboard</title>
+    <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com;
+    script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net;
+    font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com;
+    img-src 'self' data:;
+    connect-src 'self' wss://localhost:8765 data:;
+    ">
     <link rel="stylesheet" href="../css/index.style.css" type="text/css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
         integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg=="
@@ -23,7 +31,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/noty/lib/themes/mint.css">
     <script src="https://cdn.jsdelivr.net/npm/noty/lib/noty.min.js"></script>
     <!-- cdn per gsap (Animazione UI) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.7/gsap.min.js" integrity="sha512-f6bQMg6nkSRw/xfHw5BCbISe/dJjXrVGfz9BSDwhZtiErHwk7ifbmBEtF9vFW8UNIQPhV2uEFVyI/UHob9r7Cw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.7/gsap.min.js"
+        integrity="sha512-f6bQMg6nkSRw/xfHw5BCbISe/dJjXrVGfz9BSDwhZtiErHwk7ifbmBEtF9vFW8UNIQPhV2uEFVyI/UHob9r7Cw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
 
 <body>
@@ -70,17 +80,17 @@
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div id="data-values">
-                                <span class="data-value-span">
-                                    28 Miles this road
-                                </span>
+                                <div id="data-shower">
+                                    No data yet.
+                                </div>
                                 <div id="data-control-container">
-                                    <button type="button" class="data-control">
-                                        <i class="fa-solid fa-backward fa-xl"></i>
+                                    <button type="button" id="previous-data" class="data-btn" aria-label="Precedente">
+                                        <i class="fa-solid fa-arrow-left"></i>
                                     </button>
-                                    <button type="button" class="data-control">
-                                        <i class="fa-solid fa-forward fa-xl"></i>
+                                    <button type="button" id="next-data" class="data-btn" aria-label="Successivo">
+                                        <i class="fa-solid fa-arrow-right"></i>
                                     </button>
                                 </div>
                             </div>
@@ -89,14 +99,40 @@
                             <h3 id="general-control-title">
                                 Controllo
                             </h3>
-                            <span id="general-control-info">
-                                Benvenuto nel pannello di controllo della gru mobile! Qui puoi gestire facilmente tutte
-                                le sue funzioni principali.
-                            </span>
+                            <div id="general-control-info">
+                                <span class="app-descriptor-span">
+                                    Benvenuto nel pannello di controllo della gru mobile.
+                                </span>
+                                <span class="app-descriptor-span">
+                                    <i class="fas fa-gamepad fa-xl"></i></i> Controllo completo del movimento: guida la
+                                    gru, e scopri tutte le funzionalità.
+                                </span>
+                                <span class="app-descriptor-span">
+                                    <i class="fas fa-sync fa-xl"></i></i> Sterzata precisa: controlla l’angolo di
+                                    sterzata o raddrizza automaticamente con un solo tocco.
+                                </span>
+                                <span class="app-descriptor-span">
+                                    <i class="fa-solid fa-music fa-xl"></i> Riproduzione musicale: ascolta la tua musica
+                                    preferita direttamente dall’interfaccia di bordo.
+                                </span>
+                                <span class="app-descriptor-span">
+                                    <i class="fas fa-broadcast-tower fa-xl"></i></i> Videocamera in tempo reale:
+                                    visualizza il feed della telecamera per manovre più sicure e controlli precisi.
+                                </span>
+                                <span class="app-descriptor-span">
+                                    <i class="fa-solid fa-moon fa-xl"></i> Modalità notturna: passa a un’interfaccia
+                                    scura per non ottimizzare la vista in ambienti poco illuminati.
+                                </span>
+                                <span class="app-descriptor-span">
+                                    <i class="fa-solid fa-camera fa-xl"></i> Foto e video: scatta foto e registra video
+                                    durante la guida, per salvare dei checkpoint.
+                                </span>
+                            </div>
                         </div>
                     </div>
-                    <div id="camera-container">
-                        <img src="../../public/assets/legopreview.png" alt="Lego" id="lego-model-shower" draggable="false" />
+                    <div id="preview-container">
+                        <img src="../../public/assets/legopreview.png" alt="Lego" id="lego-model-shower"
+                            draggable="false" title="Lego model" />
                         <h2 id="speed-indicator">
                             0 km/h
                         </h2>
@@ -104,10 +140,10 @@
                 </div>
                 <div id="audio-panel">
                     <div id="volume-controls">
-                        <div class="volume-knob">
+                        <div class="volume-knob" data-type="speed">
                             <div class="volume-handle"></div>
                         </div>
-                        <div class="volume-knob">
+                        <div class="volume-knob" data-type="volume">
                             <div class="volume-handle"></div>
                         </div>
                     </div>
@@ -139,7 +175,7 @@
                             <div class="hand second-hand" id="second-hand"></div>
                             <div class="center-point"></div>
                         </div>
-                    </div>
+                    </div>                    
                 </div>
                 <div id="led-switch-container">
                     <div class="led-switches">
@@ -162,23 +198,19 @@
                     </div>
                 </div>
                 <div id="lego-options-container">
-                    <!-- Turbo Slider -->
                     <div class="slider-container">
                         <label for="turbo-slider" class="option-label">Turbo Power</label>
-                        <div id="turbo-value-container" class="vertical-slider"></div>
+                        <div id="turbo-value-container" class="vertical-slider" data-id="turbo"></div>
                     </div>
-
-                    <!-- Color Picker -->
+                    <div class="slider-container">
+                        <label for="brake-slider" class="option-label">Brake Intensity</label>
+                        <div id="brake-intensity-container" class="vertical-slider" data-id="brake"></div>
+                    </div>
                     <div class="slider-container">
                         <label for="color-slider" class="option-label">Led Color</label>
                         <div id="color-wheel"></div>
                     </div>
 
-                    <!-- Brake Slider -->
-                    <div class="slider-container">
-                        <label for="brake-slider" class="option-label">Brake Intensity</label>
-                        <div id="brake-intensity-container" class="vertical-slider"></div>
-                    </div>
                 </div>
                 <div id="lego-power-container">
                     <button id="lego-power-button" class="off">
@@ -210,7 +242,7 @@
                         <button type="button" class="camera-utils" id="start-recording">
                             <div class="record-icon"></div>
                         </button>
-                        <button type="button" class="camera-utils" id="stop-recording" style="display: none;">
+                        <button type="button" class="camera-utils button-invisible" id="stop-recording">
                             <div class="stop-icon"></div>
                         </button>
                         <label class="camera-utils-label">
@@ -220,7 +252,7 @@
                     <div class="camera-utils-container">
                         <button type="button" class="camera-utils">
                             <div class="toggle">
-                                <input class="toggle-input" type="checkbox" id="night-mode-value"/>
+                                <input class="toggle-input" type="checkbox" id="night-mode-value" />
                                 <div class="toggle-night-mode"></div>
                                 <div class="toggle-switch">
                                     <div class="toggle-switch-figure"></div>
@@ -236,37 +268,18 @@
             </div>
             <div id="movement-dashboard-container">
                 <div id="movement-possibilities-container">
-                    <div class="movement-possibilities">
-                        <button type="button" class="movement-button">
-                            <i class="fa-solid fa-up-long fa-2xl"></i>
-                        </button>
-                        <label class="movement-label">
-                            Su
-                        </label>
-                    </div>
-                    <div class="movement-possibilities">
-                        <button type="button" class="movement-button">
-                            <i class="fa-solid fa-left-long fa-2xl"></i>
-                        </button>
-                        <label class="movement-label">
-                            Sinistra
-                        </label>
-                    </div>
-                    <div class="movement-possibilities">
-                        <button type="button" class="movement-button">
-                            <i class="fa-solid fa-right-long fa-2xl"></i>
-                        </button>
-                        <label class="movement-label">
-                            Destra
-                        </label>
-                    </div>
-                    <div class="movement-possibilities">
-                        <button type="button" class="movement-button">
-                            <i class="fa-solid fa-down-long fa-2xl"></i>
-                        </button>
-                        <label class="movement-label">
-                            Giù
-                        </label>
+                    <div class="movement-grid">
+                        <div></div>
+                        <button class="movement-btn" data-direction="forward" disabled aria-disabled="true">↑</button>
+                        <div></div>
+
+                        <button class="movement-btn" data-direction="left" disabled aria-disabled="true">←</button>
+                        <button class="movement-btn" disabled aria-disabled="true">⏹</button>
+                        <button class="movement-btn" data-direction="right" disabled aria-disabled="true">→</button>
+
+                        <div></div>
+                        <button class="movement-btn" data-direction="backward" disabled aria-disabled="true">↓</button>
+                        <div></div>
                     </div>
                 </div>
                 <div id="movement-engine-container">
@@ -277,16 +290,13 @@
                             <div class="gear-slot" data-gear="2"><span class="gear-text">2</span></div>
                             <div class="gear-slot" data-gear="1"><span class="gear-text">1</span></div>
                             <div class="gear-slot" data-gear="F"><span class="gear-text">F</span></div>
-                            <div class="gear-lever" id="gearLever"><span class="gear-text">N</span></div>
+                            <div class="gear-lever" id="gearLever"><span class="gear-text"></span></div>
                             <div class="gear-slot" data-gear="R"><span class="gear-text">R</span></div>
                         </div>
                     </div>
                     <div id="hand-brake-container">
                         <div class="brake">
                             <div class="lever"></div>
-                            <div class="status">
-                                <span class="inactive">0</span>
-                            </div>
                         </div>
                     </div>
                 </div>

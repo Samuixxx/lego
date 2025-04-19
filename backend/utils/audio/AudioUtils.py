@@ -15,10 +15,6 @@ Funzionalità principali:
 
 Dipendenze:
 - pygame: Per interfacciarsi con i sistemi audio.
-- audiotsm: Per modificare la velocità di riproduzione mantenendo il pitch originale.
-- numpy: Per gestire i dati audio come array numerici.
-- soundfile: Per leggere e scrivere file audio.
-- io: Per gestire i dati audio in memoria come stringhe di bytes.
 - json: Per serializzare i dati del server e inviarli al client.
 - asyncio: Per gestire operazioni asincrone, come l'invio di aggiornamenti temporali al client.
 - time: Per ottenere il tempo corrente durante la riproduzione.
@@ -28,11 +24,6 @@ Data: 02-04-2025
 """
 
 import pygame
-import numpy as np
-import soundfile as sf
-from audiotsm import phasevocoder
-from audiotsm.io.array import ArrayReader, ArrayWriter
-import io
 import json
 import asyncio
 import time
@@ -83,10 +74,9 @@ class AudioUtils:
         self._start_time = None
         self.websocket = None
         self._update_task = None  # Task per l'aggiornamento temporale
-        self._last_volume = 0
-        self._loop_status = AudioLoop.DISACTIVATED
+        self._loop_status = AudioLoop.DISACTIVATED # Variabile che tiene lo stato dell loop della riproduzione
         self._is_playing = {} # {channel, bool}
-        self._current_sound = None
+        self._current_sound = None # Variabile che contiene temporaneamente il nome del suono in esecuzione
 
     def load_sound(self, name: str, file_path: str) -> None:
         """
@@ -123,22 +113,14 @@ class AudioUtils:
             None
 
         Esempio:
-            asyncio.run(audio.play_sound("musica", channel=1))
+            asyncio.create_task(audio.play_sound("musica", channel=1))
         """
 
         if name not in self.sounds:
             print(f"Il suono '{name}' non è stato caricato.")
             return
-        
-        print(f"Tentativo di riproduzione suono '{name}' su canale {channel}")
 
         ch = self.channels.get(channel)
-
-        timeout = 5  # Numero massimo di tentativi per evitare un loop infinito
-        while ch and ch.get_busy() and timeout > 0:
-            print(f"⏳ Attendo liberazione canale {channel}... Timeout: {timeout}")
-            await asyncio.sleep(0.1)
-            timeout -= 1
 
         if not ch or ch.get_busy():
             print(f"Il canale {channel} e occupato.")
@@ -148,229 +130,221 @@ class AudioUtils:
         self._current_sound = name
 
         sound = self.sounds[name][0]
-
-        ch.stop()
-
-        print(f"DEBUG: Loop status = {self._loop_status}, Current sound = {self._current_sound}")
-
         if not sound:
-            print(f"Il suono '{name}' non è stato caricato correttamente.")
-        
+            raise ValueError(f"Il suono '{name}' non è stato caricato correttamente.")
+                  
         ch.play(sound)
+        ch.set_volume(AudioSettings.DEFAULT_VOLUME.value)
+
         self.websocket = websocket
         self.is_paused = False
         self.elapsed_time = 0.0
         self._start_time = time.time()
 
         if self._update_task is None or self._update_task.done():
-            self._update_task = asyncio.create_task(self._send_updates(channel))
+            self._update_task = asyncio.create_task(self._send_updates(channel, sound))
 
-    async def _send_updates(self, channel: int) -> None:
+    async def _send_updates(self, channel: int, sound: str) -> None:
         """
         Invia aggiornamenti temporali al client tramite WebSocket durante la riproduzione audio.
 
-        Questo metodo viene eseguito come un task asincrono e invia periodicamente il tempo trascorso
-        al client tramite WebSocket. L'invio degli aggiornamenti continua finché il suono è in riproduzione
+        Questo metodo viene eseguito come un task asincrono e invia immediatamente il tempo trascorso
+        appena il suono parte, e continua ad aggiornare il client ogni secondo finché la riproduzione è attiva
         e non è in pausa.
 
         Args:
             channel (int): Canale audio (0 o 1) per il quale inviare gli aggiornamenti temporali.
+            sound (str): Nome del suono in riproduzione (non utilizzato direttamente in questa funzione ma utile per logging o estensioni future).
 
         Comportamento:
-            - Verifica se il canale specificato è attivo e in riproduzione (`ch.get_busy()`).
-            - Se il suono non è in pausa (`not self.is_paused`), calcola il tempo trascorso (`current_time_sec`)
-            sommando il tempo accumulato durante eventuali pause (`self.elapsed_time`) al tempo trascorso
-            dall'ultima ripresa della riproduzione.
-            - Invia il tempo corrente al client tramite WebSocket, serializzando i dati in formato JSON.
-            - Attende 1 secondo tra un aggiornamento e il successivo per evitare un carico eccessivo sul server.
-
-        Note:
-            - Il metodo si interrompe automaticamente quando il suono termina o il canale diventa inattivo.
-            - Durante la pausa, il timer non viene azzerato, ma l'invio degli aggiornamenti viene sospeso.
+            - Invia subito un aggiornamento temporale appena parte il suono.
+            - Verifica se il canale è attivo e in riproduzione (`ch.get_busy()`).
+            - Se non è in pausa (`not self.is_paused`), calcola e invia il tempo trascorso.
+            - Attende 1 secondo tra gli aggiornamenti successivi.
+            - Invia un ultimo aggiornamento al termine della riproduzione.
+            - Se il loop è attivo, riavvia la riproduzione del suono.
 
         Esempio di messaggio inviato al client:
             {
                 "ok": True,
-                "currentAudioTime": 12.345  # Tempo trascorso in secondi
+                "currentAudioTime": 12.345
             }
         """
 
         ch = self.channels.get(channel)
-
         if not ch:
             print(f"Canale {channel} non trovato.")
             return
 
-        # Verifica che il canale sia attivo e in riproduzione
+        self.elapsed_time = 0.0
+
+        async def send_current_time():
+            """
+            Calcola e invia il tempo corrente di riproduzione al client tramite WebSocket.
+            Ritorna False in caso di errore, True altrimenti.
+            """
+            current_time_sec = self.elapsed_time + (time.time() - self._start_time)
+            if self.websocket:
+                try:
+                    await self.websocket.send(json.dumps({
+                        "ok": True,
+                        "currentAudioTime": current_time_sec
+                    }))
+                except Exception as e:
+                    print(f"Errore nell'invio tramite WebSocket: {e}")
+                    return False
+            return True
+
+        # 🔥 Invia subito il primo aggiornamento appena parte il suono
+        if not await send_current_time():
+            return
+
+        # 🔁 Continua a inviare ogni secondo finché il canale è attivo
         while ch.get_busy():
             if not self.is_paused:
-                current_time_sec = self.elapsed_time + (time.time() - self._start_time)
-                if self.websocket:
-                    try:
-                        await self.websocket.send(json.dumps({
-                            "ok": True,
-                            "currentAudioTime": current_time_sec
-                        }))
-                    except Exception as e:
-                        print(f"Errore nell'invio tramite WebSocket: {e}")
-                        break  # Esci in caso di errore
+                if not await send_current_time():
+                    break
             await asyncio.sleep(1)
 
-        #  INVIA UN ULTIMO AGGIORNAMENTO PER IL TEMPO FINALE
-        final_time_sec = self.elapsed_time + (time.time() - self._start_time)
-        if self.websocket:
-            try:
-                await self.websocket.send(json.dumps({
-                    "ok": True,
-                    "currentAudioTime": final_time_sec
-                }))
-            except Exception as e:
-                print(f"Errore nell'invio dell'ultimo aggiornamento: {e}")
+        # ✅ Invia un ultimo aggiornamento al termine della riproduzione
+        await send_current_time()
 
-        print(f"Canale {channel} non più occupato. Liberazione...")
-
-        ch.unpause()
-        ch.stop()  # Ferma il suono attuale per sicurezza
-        await asyncio.sleep(0.1)  # Assicura la liberazione del canale
-
-        self._is_playing[channel] = (channel, False)  # Segna il canale come libero
+        ch.stop()
+        self._is_playing[channel] = (channel, False)
 
         if self._loop_status == AudioLoop.ACTIVATED:
-            print("Riavvio del suono in loop...")
-            await self.play_sound(self._current_sound, AudioSettings.CLIENT_CHANNEL.value, self.websocket)
-                
-    def pause_sound(self, channel: int = 0) -> None:
+            await asyncio.sleep(1)
+            asyncio.create_task(
+                self.play_sound(self._current_sound, AudioSettings.CLIENT_CHANNEL.value, self.websocket)
+            )
+
+
+    def restart_sound(self, name: str) -> None:
         """
-        Mette in pausa la riproduzione di un suono su un canale specifico.
+        Riavvia un suono azzerando timer e stato del canale.
+
+        Se il suono è già in riproduzione, viene interrotto e riavviato da capo.
+        Se il suono non è disponibile, la funzione termina senza eseguire azioni.
 
         Args:
-            channel (int): Canale da mettere in pausa (0 o 1). Default: 0.
+            name (str): Nome del suono da riavviare.
+        """
+        if name not in self.sounds:
+            print(f"[Errore] Suono '{name}' non trovato.")
+            return
 
-        Returns:
-            None
+        channel = AudioSettings.CLIENT_CHANNEL.value
+        ch = self.channels.get(channel)
 
-        Esempio:
-            audio.pause_sound(channel=1)
+        if ch and ch.get_busy():
+            ch.stop()
+            print(f"[Info] Riproduzione precedente fermata sul canale {channel}.")
+
+        self._current_sound = name
+        self._start_time = time.time()
+        self.elapsed_time = 0.0
+        self._is_playing[channel] = (channel, True)
+
+        asyncio.create_task(self.play_sound(name, channel, self.websocket))
+        print(f"[Info] Suono '{name}' riavviato sul canale {channel}.")
+
+
+    def pause_sound(self, channel: int = 0) -> None:
+        """
+        Mette in pausa la riproduzione audio su un canale specificato.
+
+        Args:
+            channel (int): Indice del canale audio da mettere in pausa. Default: 0.
         """
         ch = self.channels.get(channel)
+
         if ch and ch.get_busy():
             ch.pause()
             self.is_paused = True
             self.elapsed_time += time.time() - getattr(self, "_start_time", 0)
-            print("Riproduzione messa in pausa.")
+
 
     def resume_sound(self, channel: int = 0) -> None:
         """
-        Riprende la riproduzione di un suono su un canale specifico.
+        Riprende la riproduzione audio su un canale specificato.
 
         Args:
-            channel (int): Canale da riprendere (0 o 1). Default: 0.
-
-        Returns:
-            None
-
-        Esempio:
-            audio.resume_sound(channel=1)
+            channel (int): Indice del canale audio da riprendere. Default: 0.
         """
         ch = self.channels.get(channel)
+
         if ch and ch.get_busy():
             ch.unpause()
             self.is_paused = False
             self._start_time = time.time()
-            print("Riproduzione ripresa.")
 
-    def change_speed(self, name: str, speed: float) -> None:
+    def set_volume(self, channel: int, new_volume: float) -> None:
         """
-        Modifica la velocità di un suono senza riavviarlo da capo utilizzando audiotsm.
+        Imposta il volume del canale specificato.
 
         Args:
-            name (str): Nome del suono da modificare.
-            speed (float): Fattore di velocità (es. 2.0 = doppia velocità, 0.5 = metà velocità).
+            channel (int): ID del canale da modificare.
+            new_volume (float): Valore da -60 a 60 che rappresenta il livello di volume.
 
         Returns:
             None
-
-        Note:
-            - La velocità deve essere maggiore di zero.
-            - L'operazione può richiedere tempo per file audio di grandi dimensioni.
-
-        Esempio:
-            audio.change_speed("musica", 1.5)
         """
-        if name not in self.sounds:
-            print(f"Il suono '{name}' non è stato caricato.")
+        if channel not in self.channels:
+            print(f"Canale {channel} non trovato.")
             return
 
-        if speed <= 0:
-            print("La velocità deve essere maggiore di zero.")
-            return
+        # range tra [-60, 60]
+        new_volume = max(-60, min(60, new_volume))
 
-        _, file_path = self.sounds[name]
-        try:
-            audio, samplerate = sf.read(file_path)
-            reader = ArrayReader(audio.T)
-            writer = ArrayWriter()
-            tsm = phasevocoder(reader.channels, speed)
-            tsm.run(reader, writer)
-            modified_audio = writer.data.T
+        # Normalize volume to [0.0, 1.0]
+        normalized_volume = round((new_volume + 60) / 120, 2)
 
-            buffer = io.BytesIO()
-            sf.write(buffer, modified_audio, samplerate, format="WAV")
-            buffer.seek(0)
+        self.channels[channel].set_volume(normalized_volume)
 
-            self.sounds[name] = (pygame.mixer.Sound(buffer), file_path)
-        except Exception as e:
-            print(f"Errore durante la modifica della velocità del suono '{name}': {e}")
-
-    def set_volume(self, name: str, volume: float) -> None:
+    def set_pan(self, channel: int, pan_value: float) -> None:
         """
-        Imposta il volume del suono specificato.
+        Imposta il bilanciamento stereo (pan) del canale specificato.
 
         Args:
-            name (str): Nome del suono da modificare.
-            volume (float): Livello del volume (da 0.0 a 1.0).
+            channel (int): ID del canale da modificare.
+            pan_value (float): Valore da -60 a 60 dove:
+                               -60 = sinistra, 0 = centro, 60 = destra.
 
         Returns:
             None
-
-        Note:
-            - Il volume viene clippato automaticamente nel range [0.0, 1.0].
-
-        Esempio:
-            audio.set_volume("musica", 0.75)
         """
-        if name not in self.sounds:
+        if channel not in self.channels:
+            print(f"Canale {channel} non trovato.")
             return
-
-        volume = max(0.0, min(1.0, volume))
-        self.sounds[name][0].set_volume(volume)
-    
-    def toggle_mute(self, name: str) -> None:
-        """
-        Alterna lo stato di mute per l'audio della canzone.
-
-        Args:
-            name (str): Nome del suono da modificare.
         
+        # Normalizzazione del pan
+        left_volume = 1.0 if pan_value <= 0 else 1.0 - pan_value
+        right_volume = 1.0 if pan_value >= 0 else 1.0 + pan_value
+        # Ottieni il volume corrente (predefinito a 1.0)
+        self.channels[channel].set_volume(left_volume, right_volume)
+        
+    def toggle_mute(self, channel: int) -> None:
+        """
+        Alterna lo stato di mute per l'audio del suono specificato.
+
+        Args:
+            channel (int): Numero identificativo del channel da mutare.
+
         Returns:
             None
-        
-        Esempio:
-            audio.mute("musica")  # Muta
-            audio.mute("musica")  # Riattiva l'audio
         """
-        if name not in self.sounds:
+        ch = self.channels.get(channel)
+        if not ch:
             return
 
-        current_volume = self.sounds[name][0].get_volume()
+        current_volume = ch.get_volume()
+        is_muted = current_volume == 0.0
 
-        if current_volume == 0.0:
-            # Se il suono è mutato, ripristina il volume originale
-            self.sounds[name][0].set_volume(self._last_volume)
+        if is_muted:
+            ch.set_volume(getattr(self, '_last_volume', 1.0))
         else:
-            # Salva il volume attuale e muta l'audio
             self._last_volume = current_volume
-            self.sounds[name][0].set_volume(0.0)
+            ch.set_volume(0.0)
 
     def toggle_loop(self, name: str) -> None:
         """
@@ -391,33 +365,3 @@ class AudioUtils:
         
         self._loop_status = AudioLoop.ACTIVATED if self._loop_status == AudioLoop.DISACTIVATED else AudioLoop.ACTIVATED
     
-    async def _cleanup(self) -> None:
-        """
-        Ferma tutti i suoni in riproduzione, cancella i task asincroni e pulisce le risorse.
-        Questo metodo viene chiamato quando il client si disconnette dal WebSocket.
-        """
-        print("Pulizia delle risorse in corso...")
-        for channel in self.channels.values():
-            if channel.get_busy():
-                channel.stop()
-        self.is_paused = False
-        self.elapsed_time = 0.0
-        self._start_time = None
-        self.websocket = None
-        if self._update_task and not self._update_task.done():
-            self._update_task.cancel()
-        print("Risorse pulite e classe pronta per essere distrutta.")
-
-    async def monitor_websocket(self) -> None:
-        """
-        Monitora lo stato del WebSocket e pulisce le risorse se il client si disconnette.
-        """
-        while self.websocket:
-            try:
-                # Verifica se il WebSocket è ancora aperto
-                await self.websocket.ping()
-                await asyncio.sleep(1)  # Controlla ogni secondo
-            except Exception as e:
-                print(f"Client disconnesso: {e}")
-                await self._cleanup()
-                break

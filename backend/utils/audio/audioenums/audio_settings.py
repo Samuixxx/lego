@@ -22,6 +22,5 @@ class AudioSettings(enum.Enum):
         MIN_VOLUME (int): Indica il volume minimo supportato dalle casse.
         CLIENT_CHANNEL (int): Indica il canale output del client.
     """
-    MAX_VOLUME = 100                    # Valore massimo del volume
-    MIN_VOLUME = 0                      # Valore minimo del volume
+    DEFAULT_VOLUME = 0.5                # Valore di default per il volume degli audio
     CLIENT_CHANNEL = 1                  # Valore del canale di output del client

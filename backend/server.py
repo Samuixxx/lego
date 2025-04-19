@@ -12,8 +12,10 @@ import time
 from utils.camera.CameraUtils import CameraUtils
 from utils.motor.MotorUtils import MotorUtils
 from utils.audio.AudioUtils import AudioUtils
+from utils.audio.audioenums.audio_settings import AudioSettings
 from utils.motor.motorenums.direction import Direction
 from utils.motor.motorenums.turn import Turn
+from utils.motor.motorenums.gears import Gear
 from serverutils import ServerUtils
 
 ServerUtils.configure_logging()
@@ -34,7 +36,9 @@ class Server:
         self.port = port # Websocket server listening port
         self.host = host # Server url
         self.ssl_context = ssl_context
-        self._temp_side = Direction.STOP
+        self._movement_task = None
+        self._steering_task = None
+        self._decelerating = False
         self._temp_sound = None
 
     async def handle_connection(self, websocket):
@@ -83,138 +87,208 @@ class Server:
         """
         try:
             data = json.loads(message)
-            message_type = data.get("type")
             content = data.get("content", {})
 
-            match message_type:
+            match data.get("type"):
                 case "start-video-streaming":
-                    asyncio.create_task(camera_controller.startVideoStreaming())
-                    logging.info("Avvio video")
+                    asyncio.create_task(camera_controller.start_video_streaming())
+
+                # CAMERA
                 case "toggle-night-mode":
-                    logging.info(f"nightmodesended {content}")
                     if content in [0, 1]:
                         # Attivazione o disattivazione della modalità notte
-                        asyncio.create_task(camera_controller.toggleNightMode(value=content))  # Aggiungi await se la funzione è async
-                        status = "attivato" if content == 1 else "disattivato"
-                        logging.info(f"Modo notturno {status}")
+                        asyncio.create_task(camera_controller.toggle_night_mode(value=content))  # Aggiungi await se la funzione è async
                     else:
                         logging.warning(f"Valore non valido per la modalità notturna: {content}")
+
                 case "set-zoom":
                     try:
-                        # Assicurati che content contenga un valore da 0 a 3 (range dello slider)
-                        slider_value = float(content)
-                        
-                        # Limita il valore tra 0 e 3
-                        if slider_value < 0.5:
-                            slider_value = 0.5
-                        elif slider_value > 3:
-                            slider_value = 3
-                        
+                        # Converti il valore in float e limita il range tra 0.5 e 3 usando `min` e `max`
+                        slider_value = max(0.5, min(3.0, float(content)))
                         # Imposta il valore di zoom
-                        camera_controller.setZoomValue(slider_value)
+                        camera_controller.set_zoom_value(slider_value)
                     except ValueError:
                         logging.warning(f"Valore non valido per il zoom: {content}")
+
                 case "start-recording":
-                    camera_controller.startRecording()
-                    logging.info("Inizio registrazione")
+                    camera_controller.start_recording()
+
                 case "stop-recording":
-                    asyncio.create_task(camera_controller.stopRecording())
-                    logging.info("Fine registrazione")
+                    asyncio.create_task(camera_controller.stop_recording())
+
                 case "take-picture":
-                    camera_controller.wantPhoto() # scatto una foto se il client lo richiede
-                    logging.info("Scatto foto")
-                # movements cases
+                    camera_controller.set_photo_request() # scatto una foto se il client lo richiede
+
+                # MOVEMENT
                 case "toggle-motor-status":
                     # Attivazione o disattivazione del motore
-                    motor_controller._toggle_motor_status()
+                    asyncio.create_task(motor_controller.toggle_motor_status())
+
+                case "switch-gear":
+                    # Verifico che il valore della marcia sia valido
+                    try:
+                        if content not in {gear.value for gear in Gear}:
+                            return
+                        # Imposta la marcia
+                        motor_controller.set_gear(content)
+                    except ValueError:
+                        raise
+
+                case "set-turbo":
+                    # Attivazione del livello del turbo
+                    try:
+                        turbo_value = int(content.replace('%', ''))
+                        if not 0 <= turbo_value <= 100:
+                            raise ValueError
+                        motor_controller.set_turbo(value=turbo_value)
+                    except ValueError:
+                        logging.error("Valore non valido per il turbo")
+
+                case "set-brake-intensity":
+                    # Imposta l'intensità del freno
+                    try:
+                        brake_value = int(content.replace('%', ''))
+                        if not 1 <= brake_value <= 100:
+                            raise ValueError
+                        motor_controller.set_brake_value(value=brake_value)
+                    except ValueError:
+                        logging.error("Valore non valido per l'intensità del freno")
+                
                 case "move-forward":
                     # Esegui il movimento in avanti senza sterzare
-                    self._temp_side = Direction.FORWARD
-                    asyncio.create_task(motor_controller._execute_move(self._temp_side))
+                    if self._movement_task and not self._movement_task.get_name() == "stopper":
+                        self._movement_task.cancel()
+                    
+                    if motor_controller.get_motor_status():
+                        self._movement_task = asyncio.create_task(motor_controller.move_forward())
 
                 case "move-backward":
-                    # Esegui il movimento indietro senza sterzare
-                    self._temp_side = Direction.BACKWARD
-                    asyncio.create_task(motor_controller._execute_move(self._temp_side))
+                    # Esegui il movimento all'indietro senza sterzare
+                    if self._movement_task and not self._movement_task.get_name() == "stopper":
+                        self._movement_task.cancel()
+                    
+                    if motor_controller.get_motor_status():
+                        self._movement_task = asyncio.create_task(motor_controller.move_backward())
                 
                 case "stop-moving":
-                    # Fermati
-                    self._temp_side = Direction.STOP
-                    asyncio.create_task(motor_controller._execute_move(Direction.STOP))
+                    # Fermare il movimento
+                    if self._movement_task:
+                        self._movement_task.cancel()
+
+                    if motor_controller.get_motor_status():
+                        self._movement_task = asyncio.create_task(motor_controller.stop())
+                        self._movement_task.set_name("stopper")
 
                 case "turn-left":
-                    if self._temp_side == Direction.STOP:
-                        asyncio.create_task(motor_controller._turn(Turn.LEFT))
-                    else:
-                        asyncio.create_task(motor_controller._execute_move(self._temp_side, Turn.LEFT))
-                
+                    # Sterza a sinistra
+                    if self._steering_task and not self._steering_task.get_name() == "steering-reset":
+                        self._steering_task.cancel()
+
+                    if motor_controller.get_motor_status():
+                        self._steering_task = asyncio.create_task(motor_controller.turn(Turn.LEFT))
+
                 case "turn-right":
-                    if self._temp_side == Direction.STOP:
-                        asyncio.create_task(motor_controller._turn(Turn.RIGHT))
-                    else:
-                        asyncio.create_task(motor_controller._execute_move(self._temp_side, Turn.RIGHT))
+                    # Sterza a destra
+                    if self._steering_task and not self._steering_task.get_name() == "steering-reset":
+                        self._steering_task.cancel()
+
+                    if motor_controller.get_motor_status():
+                        self._steering_task = asyncio.create_task(motor_controller.turn(Turn.RIGHT))
                 
-                case "unturn-left":
-                    # Esegui l'annullamento della sterzata verso sinistra senza movimento
-                    asyncio.create_task(motor_controller._execute_move(self._temp_side, Turn.STRAIGHT))
+                case "unturn":
+                    # Esegui il movimento a sinistra senza avanzare
+                    if self._steering_task:
+                        self._steering_task.cancel()
+                    
+                    if motor_controller.get_motor_status():
+                        self._steering_task = asyncio.create_task(motor_controller.unturn())
+                        self._steering_task.set_name("steering-reset")
                 
-                case "unturn-right":
-                    # Esegui l'annullamento della sterzata verso destra senza movimento
-                    asyncio.create_task(motor_controller._execute_move(self._temp_side, Turn.STRAIGHT))
-                
-                # Audio controller
+                # AUDIO
                 case "new-audio":
-                    # Decodifica il contenuto Base64
-                    audio_ = base64.b64decode(content)
+                    # Percorso cartella temporanea
+                    temp_dir = "../user/audio/temp/"
+                    os.makedirs(temp_dir, exist_ok=True)
 
-                    # Definisci la cartella temporanea per i file audio
-                    TEMP_DIR_NAME = os.path.join("../user/audio/temp/")  # nome della cartella di upload dei file
-                    os.makedirs(TEMP_DIR_NAME, exist_ok=True)  # Creo la cartella se non esiste
+                    # Nome e percorso file
+                    file_name = data.get("name", "audio_temp.wav")[:100]  # Nome massimo 100 char per sicurezza
+                    file_path = os.path.join(temp_dir, file_name)
 
-                    # Nome e percorso del file
-                    self._temp_sound = data["name"]  # Nome del file inviato dal client
-                    file_path = os.path.join(TEMP_DIR_NAME, self._temp_sound)  # Percorso del file temporaneo
-
-                    # Salva i dati decodificati nel file
+                    # Decodifica e salvataggio file
                     with open(file_path, "wb") as f:
-                        f.write(audio_)
+                        f.write(base64.b64decode(content))
 
-                    audio = File(file_path, easy=True)
-                    seconds_duration = round(audio.info.length)
-                    minutes = seconds_duration // 60 # Trovo la lunghezza in minuti dell'audio
-                    seconds = seconds_duration % 60 # Trovo la lunghezza in secondi dell'audio
-                    duration = f"{minutes}:{seconds}" # Formatto la stringa per inviarla al client
+                    # Calcolo durata audio
+                    try:
+                        audio = File(file_path, easy=True)
+                        total_seconds = round(audio.info.length)
+                        duration = f"{total_seconds // 60}:{str(total_seconds % 60).zfill(2)}"
+                    except Exception:
+                        duration = "0:00"
 
-                    await websocket.send(json.dumps({ "ok": True, "audioDuration": duration, "audioName": self._temp_sound[:25]}))
-                    # Carica e riproduci il suono
-                    audio_controller.load_sound(name=self._temp_sound, file_path=file_path)  # Carica il file nel controller audio
-                    asyncio.create_task(audio_controller.play_sound(name=self._temp_sound, channel=1, websocket=websocket)) # riproduco il file sul primo canale
+                    # Invio dati al client
+                    await websocket.send(json.dumps({
+                        "ok": True,
+                        "audioDuration": duration,
+                        "audioName": file_name[:25]
+                    }))
+
+                    # Caricamento e riproduzione audio
+                    audio_controller.load_sound(name=file_name, file_path=file_path)
+                    
+                    self._temp_sound = file_name
+
+                    asyncio.create_task(
+                        audio_controller.play_sound(
+                            name=file_name,
+                            channel=AudioSettings.CLIENT_CHANNEL.value,
+                            websocket=websocket
+                        )
+                    )
 
                 case "pause-audio":  
                     # ferma l'audio in esecuzione
                     if self._temp_sound:
-                        audio_controller.pause_sound(channel=1)
+                        audio_controller.pause_sound(channel=AudioSettings.CLIENT_CHANNEL.value)
+                        print("canale messo in pausa")
+                
                 case "resume-audio":
                     # riprende l'audio in pausa
                     if self._temp_sound:
-                        audio_controller.resume_sound(channel=1)
+                        audio_controller.resume_sound(channel=AudioSettings.CLIENT_CHANNEL.value)
+                
+                case "restart-audio":
+                    # ricomincia l'audio in esecuzione
+                    if self._temp_sound:
+                        audio_controller.restart_sound(name=self._temp_sound)
+
+                case "set-sound-volume":
+                    # Setta il volume del suono
+                    if self._temp_sound:
+                        audio_controller.set_volume(channel=AudioSettings.CLIENT_CHANNEL.value, new_volume=content)
+
+                case "set-sound-pan":
+                    # Setta il panning del suono
+                    if self._temp_sound:
+                        audio_controller.set_pan(channel=AudioSettings.CLIENT_CHANNEL.value, pan_value=content)
                 
                 case "toggle-mute":
                     # muto l'audio in esecuzione
                     if self._temp_sound:
-                        audio_controller.toggle_mute(self._temp_sound)
+                        audio_controller.toggle_mute(AudioSettings.CLIENT_CHANNEL.value)
                 
                 case "toggle-loop":
                     # imposto il loop per l'audio in esecuzione
                     if self._temp_sound:
-                        audio_controller.toggle_loop(self._temp_sound)
-
+                        audio_controller.toggle_loop(self._temp_sound)             
+        
         except json.JSONDecodeError:
             logging.error("Errore: Messaggio non è un JSON valido")
+            
 
-    async def start_server(self):
+    async def start_server(self) -> None:
         """
-        Avvia il server WebSocket.
+        Avvia il server
         """
         server = await websockets.serve(
             self.handle_connection,

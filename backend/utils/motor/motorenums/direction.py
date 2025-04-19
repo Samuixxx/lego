@@ -5,7 +5,7 @@ Descrizione:
 Questo modulo definisce un'enumerazione (Direction) per rappresentare le direzioni di movimento di un motore.
 
 Dipendenze:
-- enum per la gestione delle direzioni tramite enumerazione (builtin).
+- enum per la gestione delle direzioni tramite enumerazione.
 
 Autore: Zs
 Data: 02-05-2025
