@@ -106,8 +106,7 @@ project/
 │   ├── utils/                   # Utility per telecamera, motori, audio
 │   ├── certificate.crt          # Certificato SSL
 │   ├── private.key              # Chiave privata SSL
-│   └── requirements.txt         # Dipendenze Python
-│
+│ │
 ├── frontend/
 │   ├── main.js                  # Entry point dell'app Electron
 │   ├── index.html               # Interfaccia utente principale
