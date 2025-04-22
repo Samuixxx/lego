@@ -1,3 +1,26 @@
+"""
+Modulo: server
+
+Descrizione:
+Server WebSocket per la gestione delle comunicazioni tra client e dispositivi
+
+Questo modulo contiene la classe principale Server che gestisce:
+- Connessioni WebSocket sicure (WSS)
+- Comunicazione con dispositivi hardware (motori, telecamera, audio)
+- Gestione dei comandi dai client
+- Elaborazione di messaggi JSON
+
+Dipendenze:
+- websockets: Per la gestione delle connessioni WebSocket
+- asyncio: Per la gestione asincrona delle operazioni
+- mutagen: Per l'elaborazione dei file audio
+- ssl: Per la gestione della sicurezza delle connessioni
+
+Author: Zs
+Date: 02-04-2025
+Version: 1.0.0
+"""
+
 import websockets
 import json
 import asyncio
@@ -16,21 +39,39 @@ from utils.audio.audioenums.audio_settings import AudioSettings
 from utils.motor.motorenums.direction import Direction
 from utils.motor.motorenums.turn import Turn
 from utils.motor.motorenums.gears import Gear
-from serverutils import ServerUtils
+from utils.serverutils import ServerUtils
 
 ServerUtils.configure_logging()
 
 class Server:
     """
     Classe Server che gestisce connessioni WebSocket e la comunicazione tra i client.
+
+    Attributes:
+        - clients (set): Insieme che tiene traccia di tutte le connessioni client attive.
+        - port (int): Porta su cui il server è in ascolto.
+        - host (str): Indirizzo host del server.
+        - ssl_context (ssl.SSLContext): Contesto SSL per connessioni sicure.
+        - _movement_task (Task): Riferimento al task corrente per il movimento del motore.
+        - _steering_task (Task): Riferimento al task corrente per lo sterzo.
+        - _decelerating (bool): Flag che indica se il veicolo sta decelerando.
+        - _temp_sound (str): Nome del file audio temporaneo in riproduzione.
     """
     def __init__(self, port: int, host: str, ssl_context):
         """
-        Inizializza un'istanza del server.
+        Inizializza un'istanza del server WebSocket.
+
+        Questo costruttore configura le proprietà fondamentali del server e inizializza 
+        variabili di stato necessarie per la gestione delle connessioni e delle operazioni.
 
         Args:
-            port (int): La porta su cui il server ascolterà le connessioni.
-            host (str): L'indirizzo host su cui il server verrà avviato (es. "localhost").
+            port (int): La porta su cui il server ascolterà le connessioni in entrata.
+                        Deve essere un numero intero compreso tra 1 e 65535.
+            host (str): L'indirizzo host su cui il server verrà avviato. Può essere un 
+                        indirizzo IP o un nome di dominio (es. "localhost", "127.0.0.1").
+            ssl_context (ssl.SSLContext): Il contesto SSL utilizzato per abilitare 
+                        connessioni sicure (WSS - WebSocket Secure). Deve essere un'istanza 
+                        valida di ssl.SSLContext configurata con certificati appropriati.
         """
         self.clients = set() # Set to track singular client 
         self.port = port # Websocket server listening port
@@ -47,7 +88,6 @@ class Server:
 
         Args:
             websocket (websockets.WebSocketServerProtocol): L'oggetto WebSocket per la connessione.
-            path (str): Il percorso della connessione.
         """
         logging.info("Nuovo client connesso!")
         self.clients.add(websocket)
@@ -76,11 +116,31 @@ class Server:
         """
         Gestisce un messaggio ricevuto da un client.
 
+        Questo metodo analizza il messaggio JSON ricevuto dal client e lo instrada verso
+        le funzionalità appropriate in base al tipo di messaggio. Supporta operazioni
+        relative alla telecamera, ai motori e all'audio.
+
         Args:
-            message (str): Il messaggio ricevuto.
-            camera_controller (CameraUtils): Camera controller instance.
-            motor_controller (MotorUtils): Motor api to control LEGO.
-            audio_controller (AudioUtils): Audio controller instance.
+            message (str): Il messaggio ricevuto, tipicamente in formato JSON.
+            camera_controller (CameraUtils): Istanza del controller della telecamera,
+                utilizzata per gestire operazioni relative alla videocamera e alle impostazioni visive.
+            motor_controller (MotorUtils): Istanza del controller dei motori,
+                utilizzata per gestire il movimento e le impostazioni del veicolo LEGO.
+            audio_controller (AudioUtils): Istanza del controller audio,
+                utilizzata per gestire la riproduzione e le impostazioni dei file audio.
+            websocket (websockets.WebSocketServerProtocol): L'istanza WebSocket associata
+                al client che ha inviato il messaggio.
+
+        Raises:
+            json.JSONDecodeError: Se il messaggio ricevuto non è un JSON valido.
+            KeyError: Se il messaggio JSON non contiene chiavi obbligatorie (es. "type").
+            ValueError: Se i valori forniti nel messaggio non sono validi (es. valori numerici fuori range).
+            TypeError: Se il tipo di dati fornito non corrisponde a quello atteso.
+            FileNotFoundError: Se si verifica un errore durante l'accesso a file richiesti (es. audio).
+            PermissionError: Se si verificano problemi di permessi durante l'accesso a risorse o file.
+            websockets.exceptions.ConnectionClosed: Se la connessione WebSocket viene chiusa durante l'elaborazione.
+            asyncio.CancelledError: Se un task asincrono viene annullato durante l'esecuzione.
+            OSError: Per errori generici relativi al sistema operativo (es. accesso a risorse hardware).
 
         Returns:
             None.
@@ -284,11 +344,65 @@ class Server:
         
         except json.JSONDecodeError:
             logging.error("Errore: Messaggio non è un JSON valido")
-            
 
+        except TypeError as e:
+            logging.error(f"Errore: Il messaggio ricevuto non ha il formato atteso. Dettagli: {e}")
+
+        except KeyError as e:
+            logging.error(f"Errore: Chiave mancante nel messaggio JSON. Dettagli: {e}")
+
+        except ValueError as e:
+            logging.error(f"Errore: Valore non valido nel messaggio. Dettagli: {e}")
+
+        except AttributeError as e:
+            logging.error(f"Errore: Attributo o metodo non trovato. Dettagli: {e}")
+        
+        except FileNotFoundError as e:
+            logging.error(f"Errore: File non trovato. Dettagli: {e}")
+        
+        except PermissionError as e:
+            logging.error(f"Errore: Permesso negato. Dettagli: {e}")
+        
+        except websockets.exceptions.ConnectionClosed as e:
+            logging.warning(f"Connessione chiusa dal client. Dettagli: {e}")
+        
+        except asyncio.CancelledError:
+            logging.info("Task cancellato correttamente.")
+        
+        except OSError as e:
+            logging.error(f"Errore di sistema. Dettagli: {e}")
+        
+        except Exception as e:
+            logging.error(f"Errore: Si è verificato un errore imprevisto. Dettagli: {e}")
+            
     async def start_server(self) -> None:
         """
-        Avvia il server
+        Avvia il server WebSocket e attende la chiusura.
+
+        Questo metodo configura e avvia il server WebSocket utilizzando la libreria `websockets`.
+        Il server viene configurato per ascoltare sulle impostazioni di host e porta specificate
+        durante l'inizializzazione della classe. Supporta connessioni sicure (WSS) tramite SSL/TLS.
+
+        Configurazione principale:
+        - `self.handle_connection`: Funzione callback per gestire nuove connessioni client.
+        - `self.host`: Indirizzo su cui il server è in ascolto.
+        - `self.port`: Porta su cui il server accetta le connessioni.
+        - `ssl_context`: Contesto SSL utilizzato per abilitare connessioni sicure (WSS).
+        - `max_size=None`: Dimensione massima consentita per i messaggi WebSocket (nessun limite).
+
+        Il metodo rimane in attesa fino alla chiusura del server, garantendo che il server continui
+        a funzionare anche dopo aver avviato le connessioni client.
+
+        Nota: Questo metodo non restituisce il controllo finché il server non viene esplicitamente chiuso.
+        
+        Raises:
+            OSError: Se si verifica un errore durante l'avvio del server (es. porta già in uso).
+            ssl.SSLError: Se si verifica un problema con il contesto SSL configurato.
+            KeyboardInterrupt: Se l'utente interrompe manualmente l'esecuzione del server.
+            Exception: Per eventuali errori imprevisti durante l'avvio o l'esecuzione del server.
+
+        Returns:
+            None.
         """
         server = await websockets.serve(
             self.handle_connection,
@@ -298,50 +412,4 @@ class Server:
             max_size=None
         )
 
-        logging.info("Server WebSocket avviato su wss://%s:%s", self.host, self.port)
-
         await server.wait_closed()
-
-if __name__ == "__main__":
-    load_dotenv()
-    port = int(get_key(".env", "PORT"))
-    host = get_key(".env", "URL")
-
-    # Percorsi assoluti dei certificati
-    _dirname = Path(__file__).parent
-    root_dir = _dirname.parent
-    certfile = root_dir / "certificate.crt"
-    keyfile = root_dir / "private.key"
-
-    # Genera i certificati se non esistono
-    if not certfile.is_file() or not keyfile.is_file():
-        print("Certificates not found. Generating new self-signed certificates...")
-        os.system(f'openssl req -x509 -newkey rsa:4096 -keyout {keyfile} -out {certfile} -days 365 -nodes -subj "/CN=localhost"')
-
-    # Creazione del contesto SSL
-    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-
-    try:
-        ssl_context.load_cert_chain(certfile=str(certfile), keyfile=str(keyfile))
-        print("Certificate and key loaded successfully")
-    except Exception as e:
-        print(f"Error loading certificate: {e}")
-        exit(1)
-
-    # Creazione e avvio del server WebSocket
-    server = Server(port, host, ssl_context)
-
-    if os.name == "nt":
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-    try:
-        start_time = time.perf_counter()
-        asyncio.run(server.start_server())
-        end_time = time.perf_counter()
-        logging.info(f"Server started in {end_time - start_time:.4f} seconds")
-    except KeyboardInterrupt:
-        logging.info("Server stopped by user")
-    except Exception as e:
-        logging.error(f"An error occurred: {e}", exc_info=True)

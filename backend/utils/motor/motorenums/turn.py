@@ -5,7 +5,7 @@ Descrizione:
 Questo modulo definisce una enumerazione per le direzioni di svolta di un veicolo.
 
 Dipendenze:
-- enum per la gestione delle direzioni tramite enumerazione (`builtin`).
+- enum per la gestione delle direzioni tramite enumerazione.
 
 Autore: ZS
 Data: 2025-04-02

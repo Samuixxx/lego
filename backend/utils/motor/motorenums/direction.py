@@ -1,5 +1,5 @@
 """
-Modulo: direction.py
+Modulo: direction
 
 Descrizione:
 Questo modulo definisce un'enumerazione (Direction) per rappresentare le direzioni di movimento di un motore.

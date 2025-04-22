@@ -5,7 +5,7 @@ Descrizione:
 Questo modulo definisce una enumerazione per i controlli di sterzata.
 
 Dipendenze:
-- enum per la gestione dei controlli di sterzata tramite enumerazione (`builtin`).
+- enum per la gestione dei controlli di sterzata tramite enumerazione.
 
 Autore: Zs
 Data: 2025-04-02

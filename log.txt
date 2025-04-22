@@ -1,1 +1,12 @@
 
+2025-04-22 16:29:11 [INFO] Logging configurato correttamente. I log verranno salvati in 'log.txt'.
+2025-04-22 16:29:11 [INFO] server listening on 127.0.0.1:8765
+2025-04-22 16:29:11 [INFO] server listening on [::1]:8765
+2025-04-22 16:29:11 [INFO] Server WebSocket avviato su wss://localhost:8765
+2025-04-22 16:35:23 [INFO] Logging configurato correttamente. I log verranno salvati in 'log.txt'.
+2025-04-22 16:35:23 [INFO] server listening on [::1]:8765
+2025-04-22 16:35:23 [INFO] server listening on 127.0.0.1:8765
+2025-04-22 16:53:47 [INFO] Logging configurato correttamente. I log verranno salvati in 'log.txt'.
+2025-04-22 16:54:44 [INFO] Logging configurato correttamente. I log verranno salvati in 'log.txt'.
+2025-04-22 16:54:44 [INFO] server listening on [::1]:8765
+2025-04-22 16:54:44 [INFO] server listening on 127.0.0.1:8765

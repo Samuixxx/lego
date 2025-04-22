@@ -5,7 +5,7 @@ Descrizione:
 Modulo per la gestione della night mode per alterare i frame inviati al client durante la trasmissione.
 
 Dipendenze:
-- enum per la gestione della night mode tramite enumerazione (`builtin`).
+- enum per la gestione della night mode tramite enumerazione.
 
 Autore: Zs
 Data: 2025-04-02

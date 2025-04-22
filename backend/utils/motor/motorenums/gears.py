@@ -1,5 +1,5 @@
 """
-Modulo: gear_enum.py
+Modulo: gears
 
 Descrizione:
 Questo modulo definisce un'enumerazione (Gear) per rappresentare gli stati del cambio di un veicolo.
